@@ -59,13 +59,12 @@ Nowoczesna, ekstremalnie wydajna i wielowątkowa aplikacja desktopowa dla system
 
 ## 📦 Pobieranie Gotowych Wersji
 
-Najnowsze gotowe pliki można pobrać w zakładce **[GitHub Releases](https://github.com/ItAxolotl/ExportX/releases/latest)**:
+Gotową wersję możesz pobrać bezpośrednio z zakładki **[GitHub Releases](https://github.com/ItAxolotl/ExportX/releases)**:
 
 | Wersja | Plik do pobrania | Opis |
 |---|---|---|
-| 💼 **Portable (Zalecana)** | [⬇️ **ExportX-Portable.zip**](https://github.com/ItAxolotl/ExportX/releases/latest/download/ExportX-Portable.zip) | W pełni niezależna paczka ze wszystkimi zależnościami (`yt-dlp`, `ffmpeg`, brak potrzeby instalacji .NET) |
-| 🚀 **Standalone .EXE** | [⬇️ **ExportX.exe**](https://github.com/ItAxolotl/ExportX/releases/latest/download/ExportX.exe) | Samodzielny pojedynczy plik wykonywalny ze zintegrowanym środowiskiem .NET (zero instalacji) |
-| 🪶 **Wszystkie wydania** | [📦 **Przejdź do Releases**](https://github.com/ItAxolotl/ExportX/releases) | Lista wszystkich wersji i archiwów wydań |
+| 💼 **Paczka Gotowa (.ZIP)** | [⬇️ **Pobierz ExportX.zip**](https://github.com/ItAxolotl/ExportX/releases/download/v1.2/ExportX.zip) | W pełni niezależna paczka ze wszystkimi zależnościami (`yt-dlp`, `ffmpeg`, brak potrzeby instalacji .NET) |
+| 🪶 **Wszystkie wydania** | [📦 **Przejdź do Releases**](https://github.com/ItAxolotl/ExportX/releases) | Lista wszystkich wersji i plików instalacyjnych |
 
 ---
 
