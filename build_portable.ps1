@@ -19,8 +19,21 @@ New-Item -ItemType Directory -Path "$dist\bin" -Force | Out-Null
 New-Item -ItemType Directory -Path "$dist\data" -Force | Out-Null
 New-Item -ItemType Directory -Path "$dist\Downloads" -Force | Out-Null
 
-Write-Host "[1/4] Kompilacja ExportX.exe (Standalone Self-Contained)..." -ForegroundColor Green
-dotnet publish ExportX.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $dist
+Write-Host "[1/4] Sprawdzanie srodowiska .NET SDK..." -ForegroundColor Green
+$dotnetVersion = & dotnet --version 2>$null
+if (-not $dotnetVersion) {
+    Write-Error "BŁĄD: .NET SDK nie jest zainstalowany na tym komputerze! Zainstaluj .NET 10 SDK: https://dotnet.microsoft.com/download/dotnet/10.0"
+    exit 1
+}
+Write-Host "  -> Wykryto .NET SDK: $dotnetVersion" -ForegroundColor Gray
+
+Write-Host "[2/4] Kompilacja ExportX.exe (Standalone Self-Contained)..." -ForegroundColor Green
+& dotnet publish ExportX.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $dist
+
+if (-not (Test-Path "$dist\ExportX.exe")) {
+    Write-Error "BŁĄD: Kompilacja nie utworzyla pliku ExportX.exe! Sprawdz bledy kompilatora powyzej."
+    exit 1
+}
 
 Set-Content -Path "$dist\portable.lock" -Value "ExportX Portable Mode"
 
