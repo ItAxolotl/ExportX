@@ -15,7 +15,7 @@ public class DownloaderEngine
         RegexOptions.Compiled);
 
     private static readonly Regex DestinationRegex = new(
-        @"\[(?:download|ExtractAudio|Merger)\]\s+(?:Destination:\s+|Merging formats into\s+"")([^""\r\n]+)",
+        @"\[(?:download|ExtractAudio|Merger)\]\s+(?:Destination:\s+|Merging formats into\s+"")([^""\r\n]+)|\[download\]\s+([^""\r\n]+?)\s+has already been downloaded|\[(?:Metadata|EmbedThumbnail)\]\s+(?:Adding metadata to\s+""|ffmpeg:\s+Adding thumbnail to\s+"")([^""\r\n]+)",
         RegexOptions.Compiled);
 
     public bool IsRunning => _isRunning;
@@ -372,7 +372,14 @@ public class DownloaderEngine
                 var destMatch = DestinationRegex.Match(line);
                 if (destMatch.Success)
                 {
-                    item.OutputPath = destMatch.Groups[1].Value.Trim();
+                    var p1 = destMatch.Groups[1].Value;
+                    var p2 = destMatch.Groups[2].Value;
+                    var p3 = destMatch.Groups[3].Value;
+                    var captured = !string.IsNullOrEmpty(p1) ? p1 : (!string.IsNullOrEmpty(p2) ? p2 : p3);
+                    if (!string.IsNullOrWhiteSpace(captured))
+                    {
+                        item.OutputPath = captured.Trim().Trim('"');
+                    }
                 }
             };
 
@@ -407,9 +414,11 @@ public class DownloaderEngine
 
             await process.WaitForExitAsync(ct);
 
+            // ExitCode 0 = OK, ExitCode 101 = Max downloads reached (expected when using --max-downloads 1)
+            bool isSuccessExit = process.ExitCode == 0 || process.ExitCode == 101;
             bool fileDownloaded = !string.IsNullOrEmpty(item.OutputPath) && File.Exists(item.OutputPath);
 
-            if (process.ExitCode == 0 || fileDownloaded)
+            if (isSuccessExit || fileDownloaded)
             {
                 item.Status = DownloadStatus.Completed;
                 item.ProgressPercentage = 100;
