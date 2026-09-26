@@ -75,18 +75,21 @@ Gotową wersję możesz pobrać bezpośrednio z zakładki **[GitHub Releases](ht
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ### Kompilacja:
-Wystarczy uruchomić jeden ze skryptów w głównym folderze:
+Zalecamy używanie konsoli **PowerShell** (Wiersz poleceń CMD może mieć problemy z uruchamianiem skryptów):
 
-```cmd
-# Pełna kompilacja wszystkich wersji (Standalone, Lightweight oraz Portable ZIP):
+```powershell
+# 1. Główna kompilacja paczki Portable (.ZIP + .exe + zależności):
+.\build_portable.ps1
+
+# 2. Pełna kompilacja wszystkich wariantów:
 .\build_exe.bat
-
-# Lub wyłącznie paczka Portable:
-powershell -ExecutionPolicy Bypass -File .\build_portable.ps1
 ```
 
+> [!TIP]
+> **Użyj PowerShell zamiast CMD:** Skrypty automatyzujące proces pakowania i zależności wymagają środowiska PowerShell.
+
 ### Uruchomienie w trybie deweloperskim:
-```cmd
+```powershell
 dotnet run
 ```
 
