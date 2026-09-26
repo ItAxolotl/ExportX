@@ -1,0 +1,117 @@
+<Window x:Class="ExportX.Views.PasteListDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ExportX.Models"
+        Title="📓 WKLEJ LISTĘ UTWORÓW / LINKÓW"
+        Height="540" Width="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource NotebookGridPatternBrush}"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="CanResizeWithGrip">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Red margin stripe decoration on left -->
+        <Border Grid.RowSpan="4" 
+                Width="3" 
+                HorizontalAlignment="Left" 
+                Background="{StaticResource BrushNotebookRedMargin}" 
+                Margin="-10,-20,0,-20" />
+
+        <!-- Header Card -->
+        <Border Grid.Row="0" Style="{StaticResource BrutalistCard}" Margin="0,0,0,15" Background="{StaticResource BrushNeonYellow}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="📝" FontSize="24" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <StackPanel>
+                    <TextBlock Text="WKLEJ LISTĘ UTWORÓW LUB LINKÓW" 
+                               FontFamily="Segoe UI" 
+                               FontWeight="Black" 
+                               FontSize="16" 
+                               Foreground="{StaticResource BrushBlackBorder}" />
+                    <TextBlock Text="Wklejaj po jednym utworze/linku w każdej linii (np. Wykonawca - Tytuł lub linki Spotify/YouTube)" 
+                               FontSize="11" 
+                               FontWeight="Bold" 
+                               Foreground="#333333" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Text Input Area -->
+        <Border Grid.Row="1" Style="{StaticResource BrutalistCard}" Margin="0,0,0,15" Padding="5">
+            <TextBox x:Name="InputTextBox" 
+                     AcceptsReturn="True" 
+                     AcceptsTab="True"
+                     VerticalScrollBarVisibility="Auto" 
+                     HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" 
+                     FontSize="13" 
+                     FontWeight="SemiBold"
+                     BorderThickness="0"
+                     Background="{StaticResource BrushPaperWhite}"
+                     TextChanged="InputTextBox_TextChanged" />
+        </Border>
+
+        <!-- Options Card -->
+        <Border Grid.Row="2" Style="{StaticResource BrutalistCard}" Margin="0,0,0,15" Background="{StaticResource BrushCardBg}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonCyan}" Margin="0,0,10,0">
+                        <TextBlock x:Name="LineCountText" Text="LINII: 0" FontWeight="Black" FontSize="11" />
+                    </Border>
+                    <TextBlock Text="Wybierz format dla dodawanych utworów:" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,10,0">
+                    <ComboBox x:Name="FormatComboBox" 
+                              Style="{StaticResource BrutalistComboBox}" 
+                              Width="140" 
+                              SelectionChanged="FormatComboBox_SelectionChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <ComboBox x:Name="BitrateComboBox" 
+                              Style="{StaticResource BrutalistComboBox}" 
+                              Width="140" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Action Buttons -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0" 
+                    Content="📋 WKLEJ ZE SCHOWKA" 
+                    Style="{StaticResource CyanButton}" 
+                    Click="PasteClipboard_Click" />
+
+            <Button Grid.Column="2" 
+                    Content="❌ ANULUJ" 
+                    Style="{StaticResource RedStopButton}" 
+                    Click="Cancel_Click" 
+                    Margin="0,0,10,0" />
+
+            <Button Grid.Column="3" 
+                    Content="➕ DODAJ DO KOLEJKI" 
+                    Style="{StaticResource GreenStartButton}" 
+                    Click="Add_Click" />
+        </Grid>
+    </Grid>
+</Window>

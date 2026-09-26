@@ -1,0 +1,663 @@
+<Window x:Class="ExportX.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:ExportX.Models"
+        Title="📓 EXPORT.X — Neo-Brutalism Notebook Downloader" 
+        Height="820" Width="1160"
+        MinHeight="620" MinWidth="920"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource NotebookGridPatternBrush}">
+
+    <Window.Resources>
+        <!-- DataGrid Row Style -->
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#FFFDF9" />
+            <Setter Property="BorderBrush" Value="#E2DED4" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="MinHeight" Value="40" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#FEF08A" />
+                    <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FEF9C3" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- DataGrid Header Style -->
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{StaticResource BrushBlackBorder}" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontWeight" Value="Black" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="BorderBrush" Value="#27272A" />
+            <Setter Property="BorderThickness" Value="0,0,1,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Padding="{TemplateBinding Padding}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                Background="{TemplateBinding Background}" 
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24,14,24,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Top Header & Path -->
+            <RowDefinition Height="Auto" /> <!-- Input & Add Bar -->
+            <RowDefinition Height="Auto" /> <!-- Settings & Controls Toolbar -->
+            <RowDefinition Height="*" MinHeight="160" />    <!-- Main Queue Grid (The Hero) -->
+            <RowDefinition Height="Auto" /> <!-- Collapsible Logs Tray -->
+            <RowDefinition Height="Auto" /> <!-- Bottom Stats & Master Progress -->
+        </Grid.RowDefinitions>
+
+        <!-- Left Red Margin Stripe (Notebook Paper Margin) -->
+        <Border Grid.RowSpan="6" 
+                Width="2.5" 
+                HorizontalAlignment="Left" 
+                Background="{StaticResource BrushNotebookRedMargin}" 
+                Margin="-14,-14,0,-14" />
+
+        <!-- ================= ROW 0: TOP HEADER BAR ================= -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Brand Sticker Logo -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="10,4" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="📓 EXPORT.X" FontWeight="Black" FontSize="16" Foreground="{StaticResource BrushBlackBorder}" />
+                        <TextBlock Text="v1.2" FontWeight="Bold" FontSize="11" Foreground="#444444" Margin="6,3,0,0" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonCyan}" Padding="8,4">
+                    <TextBlock Text="MUSIC &amp; VIDEO DOWNLOADER" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" VerticalAlignment="Center" />
+                </Border>
+            </StackPanel>
+
+            <!-- Path Selector -->
+            <Border Grid.Column="1" Style="{StaticResource BrutalistCard}" Padding="6,4" Margin="0,0,10,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="📁 ZAPISZ W:" FontWeight="Black" FontSize="11" VerticalAlignment="Center" Margin="6,0,8,0" />
+                    <TextBox Grid.Column="1" x:Name="OutputPathTextBox" 
+                             Style="{StaticResource BrutalistTextBox}" 
+                             IsReadOnly="True" 
+                             FontFamily="Consolas" 
+                             FontSize="11" 
+                             Padding="6,3"
+                             VerticalAlignment="Center" />
+
+                    <Button Grid.Column="2" 
+                            Content="📁 PRZEGLĄDAJ" 
+                            Style="{StaticResource BrutalistButton}" 
+                            Background="{StaticResource BrushPaperWhite}"
+                            FontSize="11"
+                            Padding="8,4"
+                            Click="BrowseOutputFolder_Click" 
+                            Margin="6,0,4,0" />
+
+                    <Button Grid.Column="3" 
+                            Content="📂 OTWÓRZ" 
+                            Style="{StaticResource CyanButton}" 
+                            FontSize="11"
+                            Padding="8,4"
+                            Click="OpenOutputFolder_Click" />
+                </Grid>
+            </Border>
+
+            <!-- Header Buttons (YouTube Session & Engine Update) -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="YouTubeLoginBtn"
+                        Content="🔑 KONTO YOUTUBE" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushNeonYellow}"
+                        FontSize="11"
+                        Padding="10,5"
+                        Margin="0,0,6,0"
+                        Click="YouTubeLogin_Click"
+                        ToolTip="Zaloguj się do YouTube/Google, aby odblokować pobieranie filmów +18 i playlist prywatnych" />
+
+                <Button x:Name="UpdateEngineBtn"
+                        Content="⚡ AKTUALIZUJ YT-DLP" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushNeonPurple}"
+                        FontSize="11"
+                        Padding="10,5"
+                        Click="UpdateEngine_Click"
+                        ToolTip="Aktualizuj silnik yt-dlp do najnowszej wersji" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ================= ROW 1: INPUT & ACTION BAR ================= -->
+        <Border Grid.Row="1" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Padding="8" Background="{StaticResource BrushPaperWhite}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0" Margin="0,0,8,0">
+                    <TextBox x:Name="SearchOrUrlTextBox" 
+                             Style="{StaticResource BrutalistTextBox}" 
+                             FontSize="13"
+                             Padding="10,7"
+                             KeyDown="SearchOrUrlTextBox_KeyDown" />
+
+                    <TextBlock x:Name="SearchPlaceholder" 
+                               Text="Wklej link YouTube / Spotify lub wpisz: Wykonawca - Tytuł utworu..." 
+                               Foreground="#888888" 
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               IsHitTestVisible="False" 
+                               Margin="12,9,0,0" />
+                </Grid>
+
+                <Button Grid.Column="1" 
+                        Content="➕ DODAJ UTWÓR" 
+                        Style="{StaticResource GreenStartButton}" 
+                        FontSize="12"
+                        Padding="14,6"
+                        Click="AddSingleItem_Click" 
+                        Margin="0,0,6,0" />
+
+                <Button Grid.Column="2" 
+                        Content="📋 WKLEJ LISTĘ" 
+                        Style="{StaticResource CyanButton}" 
+                        FontSize="12"
+                        Padding="12,6"
+                        Click="OpenPasteListDialog_Click" 
+                        Margin="0,0,6,0" />
+
+                <Button Grid.Column="3" 
+                        Content="📂 IMPORT (CSV/TXT/M3U)" 
+                        Style="{StaticResource PurpleButton}" 
+                        FontSize="12"
+                        Padding="12,6"
+                        Click="ImportFile_Click" />
+            </Grid>
+        </Border>
+
+        <!-- ================= ROW 2: TOOLBAR & OPTIONS ================= -->
+        <Border Grid.Row="2" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Padding="8" Background="{StaticResource BrushCardBg}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Top Row: Selectors + Start/Stop -->
+                <Grid Grid.Row="0" Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Format Selector -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="FORMAT:" FontWeight="Black" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox x:Name="DefaultFormatComboBox" 
+                                  Style="{StaticResource BrutalistComboBox}" 
+                                  Width="145" 
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectionChanged="DefaultFormatComboBox_SelectionChanged" />
+                    </StackPanel>
+
+                    <!-- Bitrate Selector -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="JAKOŚĆ:" FontWeight="Black" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox x:Name="DefaultBitrateComboBox" 
+                                  Style="{StaticResource BrutalistComboBox}" 
+                                  Width="145" 
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value" />
+                    </StackPanel>
+
+                    <!-- Concurrency -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="⚡ WĄTKI:" FontWeight="Black" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox x:Name="ThreadsComboBox" 
+                                  Style="{StaticResource BrutalistComboBox}" 
+                                  Width="70" />
+                    </StackPanel>
+
+                    <!-- Retry Failed button -->
+                    <Button Grid.Column="4" 
+                            Content="🔄 POBIERZ BŁĘDNE" 
+                            Style="{StaticResource BrutalistButton}" 
+                            Background="{StaticResource BrushNeonYellow}"
+                            FontSize="11"
+                            Padding="8,5"
+                            Click="RetryErrors_Click" 
+                            Margin="0,0,6,0" 
+                            ToolTip="Zresetuj status utworów z błędami i przygotuj je do ponownego pobrania" />
+
+                    <!-- Clear Queue -->
+                    <Button Grid.Column="5" 
+                            Content="🗑 WYCZYŚĆ LISTĘ" 
+                            Style="{StaticResource BrutalistButton}" 
+                            Background="{StaticResource BrushPaperWhite}"
+                            FontSize="11"
+                            Padding="8,5"
+                            Click="ClearList_Click" 
+                            Margin="0,0,8,0" />
+
+                    <!-- Main Action: START / STOP -->
+                    <StackPanel Grid.Column="6" Orientation="Horizontal">
+                        <Button x:Name="StartButton" 
+                                Content="▶ START POBIERANIA" 
+                                Style="{StaticResource GreenStartButton}" 
+                                FontSize="12"
+                                Padding="16,6"
+                                Click="StartDownload_Click" 
+                                Margin="0,0,6,0" />
+
+                        <Button x:Name="StopButton" 
+                                Content="⏹ STOP" 
+                                Style="{StaticResource RedStopButton}" 
+                                FontSize="12"
+                                Padding="12,6"
+                                Click="StopDownload_Click" 
+                                IsEnabled="False" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Options Checkboxes -->
+                <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <CheckBox x:Name="Anti403CheckBox" 
+                              Content="🛡 ANTI-403 (Client Fallbacks: Android/TV/iOS)" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="True" 
+                              Margin="0,0,16,0" />
+
+                    <CheckBox x:Name="AutoSkipCheckBox" 
+                              Content="⏭ POMIJAJ JUŻ POBRANE" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="True" 
+                              Margin="0,0,16,0" />
+
+                    <CheckBox x:Name="EmbedThumbnailsCheckBox" 
+                              Content="🖼 OSADZAJ OKŁADKI" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="True" 
+                              Margin="0,0,16,0" />
+
+                    <CheckBox x:Name="EmbedMetadataCheckBox" 
+                              Content="🏷 TAGI METADANYCH ID3" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="True" />
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= ROW 3: MAIN QUEUE TABLE (THE HERO) ================= -->
+        <Border Grid.Row="3" Style="{StaticResource BrutalistCard}" Margin="0,0,0,8" Padding="0">
+            <Grid>
+                <!-- Empty Queue Watermark -->
+                <StackPanel x:Name="EmptyQueuePlaceholder" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center" 
+                            Visibility="Collapsed">
+                    <TextBlock Text="📓" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                    <TextBlock Text="Kolejka pobierania jest pusta" FontWeight="Black" FontSize="16" Foreground="#666666" HorizontalAlignment="Center" />
+                    <TextBlock Text="Wklej link YouTube / Spotify powyżej lub kliknij 📋 WKLEJ LISTĘ" FontSize="12" FontWeight="SemiBold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                </StackPanel>
+
+                <!-- The DataGrid -->
+                <DataGrid x:Name="QueueDataGrid" 
+                          AutoGenerateColumns="False" 
+                          CanUserAddRows="False" 
+                          CanUserDeleteRows="False" 
+                          IsReadOnly="True"
+                          SelectionMode="Extended"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#E2DED4"
+                          BorderThickness="0"
+                          Background="{StaticResource BrushPaperWhite}"
+                          MouseDoubleClick="QueueDataGrid_MouseDoubleClick"
+                          HeadersVisibility="Column"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu Background="{StaticResource BrushPaperWhite}" 
+                                     BorderBrush="{StaticResource BrushBlackBorder}" 
+                                     BorderThickness="2" 
+                                     FontWeight="Bold">
+                            <MenuItem Header="▶ Pobierz ponownie" Click="ContextRetry_Click" />
+                            <Separator Background="{StaticResource BrushBlackBorder}" />
+                            <MenuItem Header="✏ Zmień format na MP3 (Audio)" Click="ContextChangeFormat_Click" Tag="MP3" />
+                            <MenuItem Header="✏ Zmień format na MP4 (Wideo HD)" Click="ContextChangeFormat_Click" Tag="MP4" />
+                            <MenuItem Header="✏ Zmień format na FLAC (Lossless)" Click="ContextChangeFormat_Click" Tag="FLAC" />
+                            <MenuItem Header="✏ Zmień format na M4A (AAC)" Click="ContextChangeFormat_Click" Tag="M4A" />
+                            <MenuItem Header="✏ Zmień format na WAV (Lossless)" Click="ContextChangeFormat_Click" Tag="WAV" />
+                            <MenuItem Header="✏ Zmień format na OPUS" Click="ContextChangeFormat_Click" Tag="OPUS" />
+                            <Separator Background="{StaticResource BrushBlackBorder}" />
+                            <MenuItem Header="📂 Otwórz plik na dysku" Click="ContextOpenFile_Click" />
+                            <MenuItem Header="🌐 Otwórz w przeglądarce" Click="ContextOpenBrowser_Click" />
+                            <Separator Background="{StaticResource BrushBlackBorder}" />
+                            <MenuItem Header="🗑 Usuń z kolejki" Click="ContextDelete_Click" Foreground="{StaticResource BrushNeonPink}" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <!-- Index -->
+                        <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="35">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="Black" />
+                                    <Setter Property="Foreground" Value="#666666" />
+                                    <Setter Property="HorizontalAlignment" Value="Center" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Title -->
+                        <DataGridTextColumn Header="TYTUŁ / ZAPYTANIE" Binding="{Binding Title}" Width="2.3*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                    <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    <Setter Property="ToolTip" Value="{Binding QueryOrUrl}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Artist -->
+                        <DataGridTextColumn Header="WYKONAWCA" Binding="{Binding Artist}" Width="1.2*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter Property="Foreground" Value="#555555" />
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Format Badge -->
+                        <DataGridTemplateColumn Header="FORMAT" Width="85">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource StickyNoteTag}" 
+                                            Background="{StaticResource BrushNeonYellow}" 
+                                            HorizontalAlignment="Left"
+                                            Cursor="Hand"
+                                            ToolTip="Kliknij dwukrotnie, aby zmienić format">
+                                        <TextBlock Text="{Binding SelectedFormat}" FontWeight="Black" FontSize="11" />
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Bitrate -->
+                        <DataGridTextColumn Header="JAKOŚĆ" Binding="{Binding BitrateDisplayName}" Width="95">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter Property="FontSize" Value="11" />
+                                    <Setter Property="Foreground" Value="#333333" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Status Badge -->
+                        <DataGridTemplateColumn Header="STATUS" Width="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource StickyNoteTag}" 
+                                            HorizontalAlignment="Left"
+                                            Background="{Binding StatusBrush}"
+                                            ToolTip="{Binding ErrorMessage}">
+                                        <TextBlock Text="{Binding StatusDisplayName}" 
+                                                   FontWeight="Black" 
+                                                   FontSize="11" 
+                                                   Foreground="{StaticResource BrushBlackBorder}" />
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Progress Bar -->
+                        <DataGridTemplateColumn Header="POSTĘP" Width="1.4*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <ProgressBar Style="{StaticResource BrutalistProgressBar}" 
+                                                     Value="{Binding ProgressPercentage}" 
+                                                     Maximum="100" />
+                                        <TextBlock Text="{Binding StatusMessage}" 
+                                                   FontWeight="Bold" 
+                                                   FontSize="10" 
+                                                   HorizontalAlignment="Center" 
+                                                   VerticalAlignment="Center" 
+                                                   Foreground="{StaticResource BrushBlackBorder}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Speed & ETA -->
+                        <DataGridTextColumn Header="PRĘDKOŚĆ / ETA" Binding="{Binding Speed}" Width="105">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontFamily" Value="Consolas" />
+                                    <Setter Property="FontSize" Value="11" />
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <!-- Action: Delete button -->
+                        <DataGridTemplateColumn Header="AKCJA" Width="48">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="✕" 
+                                            FontWeight="Black" 
+                                            FontSize="10" 
+                                            Padding="2,0"
+                                            Style="{StaticResource RedStopButton}" 
+                                            Click="DeleteSingleRow_Click"
+                                            ToolTip="Usuń z listy" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- ================= ROW 4: LOGS TRAY & CONSOLE ================= -->
+        <Grid Grid.Row="4" Margin="0,0,0,6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Logs Toggle Header -->
+            <Grid Grid.Row="0" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0" 
+                        x:Name="ToggleLogsBtn" 
+                        Content="📓 DZIENNIK ZDARZEŃ (LOGI) ▼" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}"
+                        FontSize="10" 
+                        Padding="8,3"
+                        Click="ToggleLogs_Click" 
+                        Margin="0,0,8,0" />
+
+                <Border Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="LastLogSnippet" 
+                               Text="Gotowy do działania." 
+                               FontFamily="Consolas" 
+                               FontSize="10" 
+                               FontWeight="Bold" 
+                               Foreground="#666666" 
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
+
+                <Button Grid.Column="2" 
+                        Content="📋 KOPIUJ LOGI" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}"
+                        FontSize="10" 
+                        Padding="6,3"
+                        Click="CopyLogs_Click" 
+                        Margin="0,0,4,0" />
+
+                <Button Grid.Column="3" 
+                        Content="📂 PLIK" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}"
+                        FontSize="10" 
+                        Padding="6,3"
+                        Click="OpenLogFile_Click" 
+                        Margin="0,0,4,0" />
+
+                <Button Grid.Column="4" 
+                        Content="🗑 WYCZYŚĆ" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}"
+                        FontSize="10" 
+                        Padding="6,3"
+                        Click="ClearLogs_Click" />
+            </Grid>
+
+            <!-- Logs Console (Collapsed by default so main queue has maximum room!) -->
+            <Border Grid.Row="1" 
+                    x:Name="LogsPanel" 
+                    Style="{StaticResource BrutalistCard}" 
+                    Height="120" 
+                    Margin="0,2,0,4" 
+                    Padding="4" 
+                    Background="#18181B" 
+                    Visibility="Collapsed">
+                <ListBox x:Name="LogsListBox" 
+                         Background="Transparent" 
+                         BorderThickness="0" 
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto" 
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                <TextBlock Text="{Binding TimeString}" FontFamily="Consolas" FontSize="10" Foreground="#9CA3AF" Margin="0,0,6,0" />
+                                <TextBlock Text="{Binding LevelBadge}" FontFamily="Consolas" FontSize="10" FontWeight="Bold" Foreground="{Binding LevelBrush}" Margin="0,0,6,0" />
+                                <TextBlock Text="{Binding Message}" FontFamily="Consolas" FontSize="10" Foreground="#E4E4E7" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </Grid>
+
+        <!-- ================= ROW 5: BOTTOM STATS & MASTER PROGRESS ================= -->
+        <Border Grid.Row="5" Style="{StaticResource BrutalistCard}" Background="{StaticResource BrushPaperWhite}" Padding="8,6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Master Progress Bar -->
+                <Grid Grid.Row="0" Margin="0,0,0,5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ProgressBar Grid.Column="0" 
+                                 x:Name="MasterProgressBar" 
+                                 Style="{StaticResource BrutalistProgressBar}" 
+                                 Height="16" 
+                                 Value="0" 
+                                 Maximum="100" 
+                                 Margin="0,0,8,0" />
+
+                    <TextBlock Grid.Column="1" 
+                               x:Name="MasterProgressPercentText" 
+                               Text="0%" 
+                               FontWeight="Black" 
+                               FontSize="11" 
+                               VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Status Counters Badges -->
+                <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatTotalText" Text="📌 WSZYSTKICH: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <Border Style="{StaticResource StickyNoteTag}" Background="#E5E7EB" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatPendingText" Text="⏳ W KOLEJCE: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonOrange}" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatDownloadingText" Text="⚡ POBIERANIE: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonLime}" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatCompletedText" Text="✅ GOTOWE: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonCyan}" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatSkippedText" Text="⏭ POMINIĘTE: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonPink}" Margin="0,0,6,0">
+                        <TextBlock x:Name="StatErrorText" Text="❌ BŁĘDY: 0" FontWeight="Black" FontSize="10" />
+                    </Border>
+
+                    <TextBlock x:Name="GlobalStatusInfo" 
+                               Text="Gotowy do działania." 
+                               FontWeight="Bold" 
+                               FontSize="11" 
+                               VerticalAlignment="Center" 
+                               Margin="8,0,0,0" 
+                               Foreground="#555555" />
+                </WrapPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

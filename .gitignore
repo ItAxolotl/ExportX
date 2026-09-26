@@ -1,0 +1,30 @@
+# Visual Studio & IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+dist/
+publish/
+
+# Local configuration & session cookies (Never commit private cookies!)
+config.json
+youtube_cookies.txt
+*.cookies.txt
+data/
+logs/
+*.log
+WebView2_Profile/
+portable.lock
+
+# Temporary download files
+*.part
+*.ytdl
+*.temp
+Downloads/
+Music/

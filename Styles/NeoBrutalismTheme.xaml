@@ -1,0 +1,541 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Neo-Brutalism & Notebook Color Palette -->
+    <Color x:Key="ColorPaperBg">#F6F4ED</Color>
+    <Color x:Key="ColorPaperWhite">#FFFFFF</Color>
+    <Color x:Key="ColorCardBg">#FFFDF9</Color>
+    <Color x:Key="ColorBlackBorder">#18181B</Color>
+    <Color x:Key="ColorNotebookRedMargin">#FF4365</Color>
+    <Color x:Key="ColorNotebookLine">#E2DED4</Color>
+    
+    <!-- Neon Highlighter Colors -->
+    <Color x:Key="ColorNeonYellow">#FFE600</Color>
+    <Color x:Key="ColorNeonCyan">#00F0FF</Color>
+    <Color x:Key="ColorNeonLime">#4ADE80</Color>
+    <Color x:Key="ColorNeonPink">#FF5376</Color>
+    <Color x:Key="ColorNeonPurple">#C084FC</Color>
+    <Color x:Key="ColorNeonOrange">#FB923C</Color>
+
+    <!-- Solid Brushes -->
+    <SolidColorBrush x:Key="BrushPaperBg" Color="{StaticResource ColorPaperBg}" />
+    <SolidColorBrush x:Key="BrushPaperWhite" Color="{StaticResource ColorPaperWhite}" />
+    <SolidColorBrush x:Key="BrushCardBg" Color="{StaticResource ColorCardBg}" />
+    <SolidColorBrush x:Key="BrushBlackBorder" Color="{StaticResource ColorBlackBorder}" />
+    <SolidColorBrush x:Key="BrushNotebookRedMargin" Color="{StaticResource ColorNotebookRedMargin}" />
+    <SolidColorBrush x:Key="BrushNotebookLine" Color="{StaticResource ColorNotebookLine}" />
+
+    <SolidColorBrush x:Key="BrushNeonYellow" Color="{StaticResource ColorNeonYellow}" />
+    <SolidColorBrush x:Key="BrushNeonCyan" Color="{StaticResource ColorNeonCyan}" />
+    <SolidColorBrush x:Key="BrushNeonLime" Color="{StaticResource ColorNeonLime}" />
+    <SolidColorBrush x:Key="BrushNeonPink" Color="{StaticResource ColorNeonPink}" />
+    <SolidColorBrush x:Key="BrushNeonPurple" Color="{StaticResource ColorNeonPurple}" />
+    <SolidColorBrush x:Key="BrushNeonOrange" Color="{StaticResource ColorNeonOrange}" />
+
+    <!-- Hard Neo-Brutalism Shadows -->
+    <DropShadowEffect x:Key="HardShadow4" 
+                      Color="{StaticResource ColorBlackBorder}" 
+                      Direction="315" 
+                      ShadowDepth="4" 
+                      BlurRadius="0" 
+                      Opacity="1" />
+
+    <DropShadowEffect x:Key="HardShadow3" 
+                      Color="{StaticResource ColorBlackBorder}" 
+                      Direction="315" 
+                      ShadowDepth="3" 
+                      BlurRadius="0" 
+                      Opacity="1" />
+
+    <DropShadowEffect x:Key="HardShadow2" 
+                      Color="{StaticResource ColorBlackBorder}" 
+                      Direction="315" 
+                      ShadowDepth="2" 
+                      BlurRadius="0" 
+                      Opacity="1" />
+
+    <!-- School Notebook Grid Paper Pattern Brush -->
+    <DrawingBrush x:Key="NotebookGridPatternBrush" 
+                  TileMode="Tile" 
+                  Viewport="0,0,24,24" 
+                  ViewportUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="{StaticResource BrushPaperBg}">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="0,0,24,24" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="{StaticResource BrushNotebookLine}" Thickness="1" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <GeometryGroup>
+                            <LineGeometry StartPoint="0,24" EndPoint="24,24" />
+                            <LineGeometry StartPoint="24,0" EndPoint="24,24" />
+                        </GeometryGroup>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <!-- Neo-Brutalism Card Border Style -->
+    <Style x:Key="BrutalistCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushCardBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2.5" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Effect" Value="{StaticResource HardShadow4}" />
+        <Setter Property="Padding" Value="12" />
+    </Style>
+
+    <!-- Sticky Note Badge Style -->
+    <Style x:Key="StickyNoteTag" TargetType="Border">
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Effect" Value="{StaticResource HardShadow2}" />
+        <Setter Property="Padding" Value="6,2" />
+    </Style>
+
+    <!-- Base Brutalist Button Style with Tactile Click -->
+    <Style x:Key="BrutalistButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontWeight" Value="ExtraBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="Background" Value="{StaticResource BrushNeonYellow}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2.5" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <!-- Offset Shadow Plate -->
+                        <Border x:Name="ShadowPlate"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="3,3,0,0"
+                                CornerRadius="0" />
+                        <!-- Button Surface -->
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,3,3"
+                                CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MainBorder" Property="Background" Value="#FFF04D" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="MainBorder" Property="Margin" Value="3,3,0,0" />
+                            <Setter TargetName="ShadowPlate" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="MainBorder" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="MainBorder" Property="Background" Value="#E0E0E0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Green Start Button -->
+    <Style x:Key="GreenStartButton" TargetType="Button" BasedOn="{StaticResource BrutalistButton}">
+        <Setter Property="Background" Value="{StaticResource BrushNeonLime}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="ShadowPlate"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="4,4,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,4,4"
+                                CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MainBorder" Property="Background" Value="#6EE7B7" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="MainBorder" Property="Margin" Value="4,4,0,0" />
+                            <Setter TargetName="ShadowPlate" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="MainBorder" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="MainBorder" Property="Background" Value="#E0E0E0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Red Stop Button -->
+    <Style x:Key="RedStopButton" TargetType="Button" BasedOn="{StaticResource BrutalistButton}">
+        <Setter Property="Background" Value="{StaticResource BrushNeonPink}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="ShadowPlate"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="4,4,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,4,4"
+                                CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MainBorder" Property="Background" Value="#FF708F" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="MainBorder" Property="Margin" Value="4,4,0,0" />
+                            <Setter TargetName="ShadowPlate" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="MainBorder" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Cyan Action Button -->
+    <Style x:Key="CyanButton" TargetType="Button" BasedOn="{StaticResource BrutalistButton}">
+        <Setter Property="Background" Value="{StaticResource BrushNeonCyan}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="ShadowPlate"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="3,3,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,3,3"
+                                CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MainBorder" Property="Background" Value="#67E8F9" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="MainBorder" Property="Margin" Value="3,3,0,0" />
+                            <Setter TargetName="ShadowPlate" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="MainBorder" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Purple / Lilac Button -->
+    <Style x:Key="PurpleButton" TargetType="Button" BasedOn="{StaticResource BrutalistButton}">
+        <Setter Property="Background" Value="{StaticResource BrushNeonPurple}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="ShadowPlate"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="3,3,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,3,3"
+                                CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center" 
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MainBorder" Property="Background" Value="#D8B4FE" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="MainBorder" Property="Margin" Value="3,3,0,0" />
+                            <Setter TargetName="ShadowPlate" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Brutalist TextBox -->
+    <Style x:Key="BrutalistTextBox" TargetType="TextBox">
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{StaticResource BrushPaperWhite}" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2.5" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="CaretBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource BrushNeonYellow}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid>
+                        <Border x:Name="Shadow"
+                                Background="{StaticResource BrushBlackBorder}"
+                                Margin="3,3,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Margin="0,0,3,3"
+                                CornerRadius="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="#FFFFFE" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Brutalist ComboBox -->
+    <Style x:Key="BrutalistComboBox" TargetType="ComboBox">
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="Background" Value="{StaticResource BrushPaperWhite}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <!-- Offset Shadow Plate -->
+                        <Border Background="{StaticResource BrushBlackBorder}"
+                                Margin="2,2,0,0"
+                                CornerRadius="0" />
+                        <Border x:Name="MainBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Margin="0,0,2,2"
+                                CornerRadius="0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="28" />
+                                </Grid.ColumnDefinitions>
+
+                                <ContentPresenter Grid.Column="0"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  VerticalAlignment="Center" />
+
+                                <Border Grid.Column="1"
+                                        Background="{StaticResource BrushNeonYellow}"
+                                        BorderBrush="{StaticResource BrushBlackBorder}"
+                                        BorderThickness="2,0,0,0">
+                                    <TextBlock Text="▼"
+                                               FontSize="10"
+                                               FontWeight="Black"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+
+                                <ToggleButton Grid.ColumnSpan="2"
+                                              Background="Transparent"
+                                              BorderBrush="Transparent"
+                                              Focusable="False"
+                                              IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <Popup x:Name="PART_Popup"
+                                       AllowsTransparency="True"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       Placement="Bottom"
+                                       PopupAnimation="Slide">
+                                    <Border Background="{StaticResource BrushPaperWhite}"
+                                            BorderBrush="{StaticResource BrushBlackBorder}"
+                                            BorderThickness="2.5"
+                                            Effect="{StaticResource HardShadow4}"
+                                            MinWidth="{TemplateBinding ActualWidth}"
+                                            MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                        <ScrollViewer SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Brutalist ComboBox Item -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder" 
+                            Background="Transparent" 
+                            BorderBrush="{StaticResource BrushNotebookLine}"
+                            BorderThickness="0,0,0,1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource BrushNeonYellow}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource BrushNeonCyan}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Neo-Brutalism Progress Bar -->
+    <Style x:Key="BrutalistProgressBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Background" Value="{StaticResource BrushPaperWhite}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="0">
+                        <Grid x:Name="TemplateRoot">
+                            <Border x:Name="PART_Track" />
+                            <Border x:Name="PART_Indicator" 
+                                    HorizontalAlignment="Left"
+                                    Background="{StaticResource BrushNeonLime}"
+                                    BorderBrush="{StaticResource BrushBlackBorder}"
+                                    BorderThickness="0,0,2,0" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- CheckBox Brutalist -->
+    <Style x:Key="BrutalistCheckBox" TargetType="CheckBox">
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource BrushBlackBorder}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid Width="20" Height="20" Margin="0,0,8,0">
+                            <Border Background="{StaticResource BrushBlackBorder}"
+                                    Margin="2,2,0,0"
+                                    CornerRadius="0" />
+                            <Border x:Name="BoxBorder"
+                                    Background="{StaticResource BrushPaperWhite}"
+                                    BorderBrush="{StaticResource BrushBlackBorder}"
+                                    BorderThickness="2"
+                                    Margin="0,0,2,2"
+                                    CornerRadius="0">
+                                <TextBlock x:Name="CheckMark"
+                                           Text="✔"
+                                           FontSize="13"
+                                           FontWeight="Black"
+                                           Foreground="{StaticResource BrushBlackBorder}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                            </Border>
+                        </Grid>
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="BoxBorder" Property="Background" Value="{StaticResource BrushNeonYellow}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BoxBorder" Property="BorderBrush" Value="{StaticResource BrushNotebookRedMargin}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>
