@@ -74,6 +74,27 @@ public partial class SpotifyLoginWindow : Window
         }
     }
 
+    private async Task<string?> GetSpDcCookieAsync()
+    {
+        try
+        {
+            if (LoginWebView.CoreWebView2 == null) return null;
+            var list = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://spotify.com");
+            var sp = list.FirstOrDefault(c => c.Name == "sp_dc");
+            if (sp != null && !string.IsNullOrWhiteSpace(sp.Value)) return sp.Value;
+
+            list = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://accounts.spotify.com");
+            sp = list.FirstOrDefault(c => c.Name == "sp_dc");
+            if (sp != null && !string.IsNullOrWhiteSpace(sp.Value)) return sp.Value;
+
+            list = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
+            sp = list.FirstOrDefault(c => c.Name == "sp_dc");
+            if (sp != null && !string.IsNullOrWhiteSpace(sp.Value)) return sp.Value;
+        }
+        catch { }
+        return null;
+    }
+
     private async void CoreWebView2_WebResourceResponseReceived(object? sender, CoreWebView2WebResourceResponseReceivedEventArgs e)
     {
         if (_isSuccess) return;
@@ -82,7 +103,7 @@ public partial class SpotifyLoginWindow : Window
         {
             var uri = e.Request?.Uri ?? "";
 
-            // Intercept response from get_access_token endpoint only
+            // Intercept response from get_access_token endpoint
             if (uri.Contains("get_access_token") && e.Response != null && e.Response.StatusCode == 200)
             {
                 try
@@ -116,7 +137,7 @@ public partial class SpotifyLoginWindow : Window
             var msg = e.TryGetWebMessageAsString();
             if (!string.IsNullOrEmpty(msg) && msg.Contains("accessToken"))
             {
-                await ProcessTokenJsonAsync(msg);
+                await Dispatcher.InvokeAsync(async () => await ProcessTokenJsonAsync(msg));
             }
         }
         catch { }
@@ -139,41 +160,30 @@ public partial class SpotifyLoginWindow : Window
         _isChecking = true;
         try
         {
-            // Verify if user actually has an authenticated session cookie (sp_dc)
-            var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
-            var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
-            if (spCookie == null || string.IsNullOrWhiteSpace(spCookie.Value) || spCookie.Value.Length < 20)
-            {
-                // Not logged in yet
-                return;
-            }
-
-            // PostMessage async fetch from page context
-            const string asyncPostScript = @"(async () => {
+            const string script = @"(function() {
                 try {
-                    const r = await fetch('/get_access_token?reason=transport&productType=web_player');
-                    if (r.ok) {
-                        const d = await r.json();
-                        if (d && d.accessToken && !d.isAnonymous) {
-                            window.chrome.webview.postMessage(JSON.stringify(d));
-                            return;
-                        }
-                    }
+                    fetch('/get_access_token?reason=transport&productType=web_player')
+                        .then(function(r) { return r.json(); })
+                        .then(function(d) {
+                            if (d && d.accessToken && !d.isAnonymous) {
+                                window.chrome.webview.postMessage(JSON.stringify(d));
+                            }
+                        })
+                        .catch(function(e) {});
                 } catch(e) {}
 
                 try {
-                    const s = document.getElementById('session');
+                    var s = document.getElementById('session');
                     if (s && s.textContent) {
-                        const d = JSON.parse(s.textContent);
+                        var d = JSON.parse(s.textContent);
                         if (d && d.accessToken && !d.isAnonymous) {
                             window.chrome.webview.postMessage(JSON.stringify(d));
-                            return;
                         }
                     }
                 } catch(e) {}
-            })()";
+            })();";
 
-            _ = LoginWebView.CoreWebView2.ExecuteScriptAsync(asyncPostScript);
+            _ = await LoginWebView.CoreWebView2.ExecuteScriptAsync(script);
         }
         catch (Exception ex)
         {
@@ -236,25 +246,6 @@ public partial class SpotifyLoginWindow : Window
     private async Task ProcessTokenAsync(string accessToken, int expiresIn)
     {
         if (_isSuccess) return;
-
-        string? spDc = null;
-        try
-        {
-            if (LoginWebView.CoreWebView2 != null)
-            {
-                var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
-                var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
-                if (spCookie != null) spDc = spCookie.Value;
-            }
-        }
-        catch { }
-
-        // Require sp_dc to be certain user is not anonymous
-        if (string.IsNullOrWhiteSpace(spDc))
-        {
-            return;
-        }
-
         _isSuccess = true;
         _pollTimer.Stop();
 
@@ -263,6 +254,7 @@ public partial class SpotifyLoginWindow : Window
             StatusBadgeText.Text = "✅ ZALOGOWANO POMYŚLNIE!";
             StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
 
+            string? spDc = await GetSpDcCookieAsync();
             var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
             SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
 
@@ -283,29 +275,22 @@ public partial class SpotifyLoginWindow : Window
 
         StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
         StatusBadgeText.Text = "⏳ WERYFIKACJA...";
-        StatusNote.Text = "Sprawdzanie aktywnej sesji Spotify...";
+        StatusNote.Text = "Pobieranie aktywnej sesji Spotify...";
 
-        var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
-        var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
-        var currentUrl = LoginWebView.Source?.ToString() ?? "";
-
-        if (spCookie == null || string.IsNullOrWhiteSpace(spCookie.Value) || spCookie.Value.Length < 20)
-        {
-            StatusBadgeText.Text = "OCZEKIWANIE NA LOGOWANIE";
-            StatusBadge.Background = (SolidColorBrush)FindResource("BrushPaperWhite");
-            StatusNote.Text = "Wskazówka: Zaloguj się w oknie powyżej swoim loginem i hasłem.";
-
-            MessageBox.Show(
-                "Nie jesteś jeszcze zalogowany do Spotify.\n\nWpisz swój login i hasło w oknie powyżej i zatwierdź logowanie na stronie.",
-                "Wymagane zalogowanie",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
-        }
-
+        // 1. Trigger JavaScript fetch in the page
         await CheckSessionStatusAsync();
+
+        // 2. Read cookies
+        var spDc = await GetSpDcCookieAsync();
         if (_isSuccess) return;
 
+        if (!string.IsNullOrWhiteSpace(spDc))
+        {
+            await Task.Delay(600);
+            if (_isSuccess) return;
+        }
+
+        var currentUrl = LoginWebView.Source?.ToString() ?? "";
         if (!currentUrl.Contains("open.spotify.com"))
         {
             LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/");
@@ -313,8 +298,16 @@ public partial class SpotifyLoginWindow : Window
         }
         else
         {
-            LoginWebView.CoreWebView2.Reload();
-            StatusNote.Text = "Odświeżanie strony Spotify...";
+            const string forceScript = @"(function() {
+                fetch('/get_access_token?reason=transport&productType=web_player')
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (d && d.accessToken) {
+                            window.chrome.webview.postMessage(JSON.stringify(d));
+                        }
+                    });
+            })();";
+            _ = LoginWebView.CoreWebView2.ExecuteScriptAsync(forceScript);
         }
     }
 
