@@ -374,10 +374,8 @@ public partial class YouTubeLoginWindow : Window
             StatusBadgeText.Text = "⚡ SZYBKI IMPORT Z PRZEGLĄDARKI";
 
             var ask = MessageBox.Show(
-                $"Wykryto aktywną przeglądarkę {defaultBrowser.ToUpperInvariant()}, która blokuje pliki sesji na czas działania.\n\n" +
-                $"Czy chcesz, aby ExportX na 1 sekundę zrestartował przeglądarkę {defaultBrowser.ToUpperInvariant()} i automatycznie skopiował Twoje zalogowane konto YouTube BEZ wpisywania hasła i kodów 2FA?\n\n" +
-                $"💡 Twoje otwarte karty zostaną automatycznie przywrócone!",
-                "Pobierz sesję bez haseł i 2FA",
+                "Czy chcesz, aby ExportX zrestartował przeglądarkę i zautoryzował twoje konto YouTube?\n\nTwoje otwarte karty zostaną automatycznie przywrócone!",
+                "Autoryzacja konta YouTube",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
