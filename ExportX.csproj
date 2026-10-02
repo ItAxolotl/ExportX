@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -7,9 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.5.4</Version>
-    <AssemblyVersion>1.5.4.0</AssemblyVersion>
-    <FileVersion>1.5.4.0</FileVersion>
+    <Version>1.5.5</Version>
+    <AssemblyVersion>1.5.5.0</AssemblyVersion>
+    <FileVersion>1.5.5.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

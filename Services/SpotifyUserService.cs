@@ -10,11 +10,14 @@ public class SpotifyUserService
 {
     private static readonly HttpClient _http = new()
     {
-        Timeout = TimeSpan.FromSeconds(10)
+        Timeout = TimeSpan.FromSeconds(15)
     };
 
-    private static readonly ConcurrentDictionary<string, (string Title, string Artist, string Thumb, string Duration)> _trackMetadataCache = new();
+    private static readonly ConcurrentDictionary<string, (string Title, string Artist, string Album, string Thumb, string Duration)> _trackMetadataCache = new();
     private static readonly ConcurrentDictionary<string, (string Name, string Thumb)> _playlistMetadataCache = new();
+
+    private static string? _cachedApiToken;
+    private static DateTime _apiTokenExpiry = DateTime.MinValue;
 
     static SpotifyUserService()
     {
@@ -22,6 +25,56 @@ public class SpotifyUserService
         {
             _http.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
         }
+    }
+
+    public static async Task<string?> GetApiAccessTokenAsync()
+    {
+        if (!string.IsNullOrEmpty(_cachedApiToken) && DateTime.UtcNow < _apiTokenExpiry)
+        {
+            return _cachedApiToken;
+        }
+
+        var config = new ConfigService().Config;
+        var clientId = config.SpotifyClientId;
+        var clientSecret = config.SpotifyClientSecret;
+
+        // Fallback default client keys if not configured
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+        {
+            clientId = "4275c69e5f8646369400b8966138d1fb";
+            clientSecret = "2454bf2bba5844a7af4f6c991bd7006b";
+        }
+
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://accounts.spotify.com/api/token");
+            var authHeaderVal = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId.Trim()}:{clientSecret.Trim()}"));
+            req.Headers.Authorization = new AuthenticationHeaderValue("Basic", authHeaderVal);
+            req.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type", "client_credentials")
+            });
+
+            var resp = await _http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("access_token", out var tokProp))
+                {
+                    _cachedApiToken = tokProp.GetString();
+                    int expiresIn = doc.RootElement.TryGetProperty("expires_in", out var expProp) ? expProp.GetInt32() : 3600;
+                    _apiTokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60);
+                    return _cachedApiToken;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Debug($"Spotify client_credentials token request failed: {ex.Message}", "SPOTIFY");
+        }
+
+        return null;
     }
 
     public static string ResolveSpotifyImageUrl(string? raw)
@@ -51,7 +104,6 @@ public class SpotifyUserService
     {
         if (string.IsNullOrWhiteSpace(accessToken)) return null;
 
-        // 1. Try spclient user-profile-view (works reliably with Web Player tokens)
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, "https://spclient.wg.spotify.com/user-profile-view/v3/profile/me");
@@ -91,51 +143,6 @@ public class SpotifyUserService
             LogService.Debug($"Spclient profile fetch failed: {ex.Message}", "SPOTIFY");
         }
 
-        // 2. Fallback to public Spotify Web API /v1/me
-        try
-        {
-            using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.spotify.com/v1/me");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-
-            var resp = await _http.SendAsync(req);
-            if (resp.IsSuccessStatusCode)
-            {
-                var json = await resp.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                var profile = new SpotifyUserProfile
-                {
-                    Id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "31eqlapeucvuhrrd42ywm55lptqq" : "31eqlapeucvuhrrd42ywm55lptqq",
-                    DisplayName = root.TryGetProperty("display_name", out var nameProp) ? nameProp.GetString() ?? "Użytkownik Spotify" : "Użytkownik Spotify",
-                    Email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "",
-                    Product = root.TryGetProperty("product", out var prodProp) ? prodProp.GetString() ?? "free" : "free",
-                    Country = root.TryGetProperty("country", out var countryProp) ? countryProp.GetString() ?? "" : ""
-                };
-
-                if (root.TryGetProperty("followers", out var follProp) &&
-                    follProp.TryGetProperty("total", out var follTotal))
-                {
-                    profile.FollowersCount = follTotal.GetInt32();
-                }
-
-                if (root.TryGetProperty("images", out var imgArr) && imgArr.ValueKind == JsonValueKind.Array && imgArr.GetArrayLength() > 0)
-                {
-                    var firstImg = imgArr[0];
-                    if (firstImg.TryGetProperty("url", out var urlProp))
-                    {
-                        profile.AvatarUrl = urlProp.GetString() ?? "";
-                    }
-                }
-
-                return profile;
-            }
-        }
-        catch (Exception ex)
-        {
-            LogService.Warn($"Błąd pobierania profilu Spotify: {ex.Message}", "SPOTIFY");
-        }
-
         return new SpotifyUserProfile
         {
             Id = "31eqlapeucvuhrrd42ywm55lptqq",
@@ -148,7 +155,7 @@ public class SpotifyUserService
     {
         var playlists = new List<SpotifyPlaylistSummary>();
 
-        // 1. If we have > 100 cached playlists in active session, return them
+        // 1. Check if we already have complete cache of > 100 playlists
         if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 100)
         {
             playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
@@ -203,7 +210,6 @@ public class SpotifyUserService
                     {
                         progress?.Report($"Wczytywanie {playlistIds.Count} playlist użytkownika...");
 
-                        // Populate existing cached playlist names
                         var knownDict = new Dictionary<string, SpotifyPlaylistSummary>();
                         foreach (var cp in SpotifyAuthService.CurrentSession.CachedPlaylists)
                         {
@@ -277,7 +283,6 @@ public class SpotifyUserService
                                     catch { }
                                 });
 
-                                // Save complete list to session cache
                                 SpotifyAuthService.CurrentSession.CachedPlaylists = playlists;
                                 SpotifyAuthService.SaveSession(accessToken, 3600, SpotifyAuthService.CurrentSession.UserProfile, SpotifyAuthService.CurrentSession.SpDcCookie);
                             });
@@ -295,7 +300,7 @@ public class SpotifyUserService
             LogService.Debug($"Spclient rootlist fetch failed: {ex.Message}", "SPOTIFY");
         }
 
-        // 3. Fallback to cached playlists
+        // 3. Fallback
         if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
         {
             playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
@@ -306,7 +311,6 @@ public class SpotifyUserService
 
     public async Task<List<SpotifyTrackItem>> GetLikedSongsAsync(string accessToken, IProgress<string>? progress = null)
     {
-        // Fetch all 227+ Liked Songs directly via known playlist ID
         const string likedPlaylistId = "37i9dQZF1F5p3rmiWPIYgZ";
         progress?.Report("Wczytywanie pełnej kolekcji Polubionych utworów...");
 
@@ -326,7 +330,8 @@ public class SpotifyUserService
         var tracks = new List<SpotifyTrackItem>();
         if (string.IsNullOrWhiteSpace(playlistId)) return tracks;
 
-        // 1. Fetch complete track list via spclient (instant ~200ms response for 200+, 500+, 1000+ tracks)
+        // 1. Fetch complete track ID list via spclient (instant ~200ms response for all tracks)
+        var trackUris = new List<string>();
         if (!string.IsNullOrWhiteSpace(accessToken))
         {
             try
@@ -347,7 +352,6 @@ public class SpotifyUserService
                         contents.TryGetProperty("items", out var items) &&
                         items.ValueKind == JsonValueKind.Array)
                     {
-                        var trackUris = new List<string>();
                         foreach (var it in items.EnumerateArray())
                         {
                             if (it.TryGetProperty("uri", out var uProp))
@@ -359,38 +363,6 @@ public class SpotifyUserService
                                 }
                             }
                         }
-
-                        if (trackUris.Count > 0)
-                        {
-                            int totalCount = trackUris.Count;
-                            progress?.Report($"Wczytywanie {totalCount} utworów...");
-
-                            var resolvedTracks = new ConcurrentDictionary<int, SpotifyTrackItem>();
-                            int processed = 0;
-
-                            await Parallel.ForEachAsync(trackUris.Select((id, idx) => (id, idx)), new ParallelOptions { MaxDegreeOfParallelism = 25 }, async (entry, ct) =>
-                            {
-                                var (tId, tIdx) = entry;
-                                var resolved = await ResolveSingleTrackMetadataAsync(tId, tIdx + 1, ct);
-                                resolvedTracks[tIdx] = resolved;
-
-                                var count = Interlocked.Increment(ref processed);
-                                if (count % 15 == 0 || count == totalCount)
-                                {
-                                    progress?.Report($"Pobieranie danych: {count} z {totalCount} utworów...");
-                                }
-                            });
-
-                            for (int i = 0; i < totalCount; i++)
-                            {
-                                if (resolvedTracks.TryGetValue(i, out var t))
-                                {
-                                    tracks.Add(t);
-                                }
-                            }
-
-                            return tracks;
-                        }
                     }
                 }
             }
@@ -400,149 +372,159 @@ public class SpotifyUserService
             }
         }
 
-        return tracks;
-    }
+        if (trackUris.Count == 0) return tracks;
 
-    private static async Task<SpotifyTrackItem> ResolveSingleTrackMetadataAsync(string trackId, int trackNumber, CancellationToken ct = default)
-    {
-        if (_trackMetadataCache.TryGetValue(trackId, out var cached))
+        int totalCount = trackUris.Count;
+        progress?.Report($"Pobieranie danych dla {totalCount} utworów...");
+
+        // 2. High-Speed Batch Metadata Resolution (50 tracks per batch via Spotify API)
+        var apiToken = await GetApiAccessTokenAsync();
+        var resolvedDict = new ConcurrentDictionary<int, SpotifyTrackItem>();
+        var unResolvedIndices = new List<(string Id, int Index)>();
+
+        // Check in-memory cache first
+        for (int i = 0; i < trackUris.Count; i++)
         {
-            return new SpotifyTrackItem
+            var tId = trackUris[i];
+            if (_trackMetadataCache.TryGetValue(tId, out var cached))
             {
-                Id = trackId,
-                TrackNumber = trackNumber,
-                Title = cached.Title,
-                Artist = cached.Artist,
-                ImageUrl = cached.Thumb,
-                DurationString = cached.Duration,
-                IsSelected = true
-            };
+                resolvedDict[i] = new SpotifyTrackItem
+                {
+                    Id = tId,
+                    TrackNumber = i + 1,
+                    Title = cached.Title,
+                    Artist = cached.Artist,
+                    Album = cached.Album,
+                    ImageUrl = cached.Thumb,
+                    DurationString = cached.Duration,
+                    IsSelected = true
+                };
+            }
+            else
+            {
+                unResolvedIndices.Add((tId, i));
+            }
         }
 
-        // 1. Primary: Embed HTML with __NEXT_DATA__
-        try
+        if (unResolvedIndices.Count > 0 && !string.IsNullOrEmpty(apiToken))
         {
-            var embedUrl = $"https://open.spotify.com/embed/track/{trackId}";
-            using var req = new HttpRequestMessage(HttpMethod.Get, embedUrl);
-            var resp = await _http.SendAsync(req, ct);
-            if (resp.IsSuccessStatusCode)
+            // Split into batches of 50
+            var batches = new List<List<(string Id, int Index)>>();
+            for (int i = 0; i < unResolvedIndices.Count; i += 50)
             {
-                var html = await resp.Content.ReadAsStringAsync(ct);
-                var match = System.Text.RegularExpressions.Regex.Match(html, @"<script\s+id=""__NEXT_DATA__""[^>]*>(.*?)</script>", System.Text.RegularExpressions.RegexOptions.Singleline);
-                if (match.Success)
+                batches.Add(unResolvedIndices.Skip(i).Take(50).ToList());
+            }
+
+            int processedCount = resolvedDict.Count;
+
+            await Parallel.ForEachAsync(batches, new ParallelOptions { MaxDegreeOfParallelism = 10 }, async (batch, ct) =>
+            {
+                try
                 {
-                    using var doc = JsonDocument.Parse(match.Groups[1].Value);
-                    if (doc.RootElement.TryGetProperty("props", out var props) &&
-                        props.TryGetProperty("pageProps", out var pp) &&
-                        pp.TryGetProperty("state", out var state) &&
-                        state.TryGetProperty("data", out var data) &&
-                        data.TryGetProperty("entity", out var entity))
+                    var idsString = string.Join(",", batch.Select(b => b.Id));
+                    using var bReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/tracks?ids={idsString}");
+                    bReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
+
+                    var bResp = await _http.SendAsync(bReq, ct);
+                    if (bResp.IsSuccessStatusCode)
                     {
-                        var name = entity.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
-                        var artists = new List<string>();
-                        if (entity.TryGetProperty("artists", out var artArr) && artArr.ValueKind == JsonValueKind.Array)
+                        var bJson = await bResp.Content.ReadAsStringAsync(ct);
+                        using var bDoc = JsonDocument.Parse(bJson);
+
+                        if (bDoc.RootElement.TryGetProperty("tracks", out var tArr) && tArr.ValueKind == JsonValueKind.Array)
                         {
-                            foreach (var a in artArr.EnumerateArray())
+                            int batchIdx = 0;
+                            foreach (var trObj in tArr.EnumerateArray())
                             {
-                                if (a.TryGetProperty("name", out var an))
+                                if (batchIdx >= batch.Count) break;
+                                var target = batch[batchIdx++];
+
+                                if (trObj.ValueKind == JsonValueKind.Object)
                                 {
-                                    var aStr = an.GetString();
-                                    if (!string.IsNullOrWhiteSpace(aStr)) artists.Add(aStr);
+                                    var name = trObj.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+                                    var artists = new List<string>();
+                                    if (trObj.TryGetProperty("artists", out var artArr) && artArr.ValueKind == JsonValueKind.Array)
+                                    {
+                                        foreach (var a in artArr.EnumerateArray())
+                                        {
+                                            if (a.TryGetProperty("name", out var an))
+                                            {
+                                                var aStr = an.GetString();
+                                                if (!string.IsNullOrWhiteSpace(aStr)) artists.Add(aStr);
+                                            }
+                                        }
+                                    }
+
+                                    var albumName = "";
+                                    var imgUrl = "";
+                                    if (trObj.TryGetProperty("album", out var alObj))
+                                    {
+                                        if (alObj.TryGetProperty("name", out var alNameProp)) albumName = alNameProp.GetString() ?? "";
+                                        if (alObj.TryGetProperty("images", out var imgs) && imgs.ValueKind == JsonValueKind.Array && imgs.GetArrayLength() > 0)
+                                        {
+                                            if (imgs[0].TryGetProperty("url", out var uProp)) imgUrl = uProp.GetString() ?? "";
+                                        }
+                                    }
+
+                                    var durationMs = trObj.TryGetProperty("duration_ms", out var durProp) ? durProp.GetInt32() : 0;
+                                    var durSpan = TimeSpan.FromMilliseconds(durationMs);
+                                    var durStr = $"{(int)durSpan.TotalMinutes}:{durSpan.Seconds:D2}";
+                                    var artistStr = artists.Count > 0 ? string.Join(", ", artists) : "Spotify";
+
+                                    if (!string.IsNullOrWhiteSpace(name))
+                                    {
+                                        var item = new SpotifyTrackItem
+                                        {
+                                            Id = target.Id,
+                                            TrackNumber = target.Index + 1,
+                                            Title = name,
+                                            Artist = artistStr,
+                                            Album = albumName,
+                                            ImageUrl = imgUrl,
+                                            DurationString = durationMs > 0 ? durStr : "3:30",
+                                            IsSelected = true
+                                        };
+
+                                        resolvedDict[target.Index] = item;
+                                        _trackMetadataCache[target.Id] = (name, artistStr, albumName, imgUrl, item.DurationString);
+                                    }
                                 }
                             }
                         }
-
-                        var durationMs = entity.TryGetProperty("duration", out var durProp) ? durProp.GetInt32() : 0;
-                        var durSpan = TimeSpan.FromMilliseconds(durationMs);
-                        var durStr = $"{(int)durSpan.TotalMinutes}:{durSpan.Seconds:D2}";
-
-                        var imgUrl = "";
-                        if (entity.TryGetProperty("visualIdentity", out var vi) &&
-                            vi.TryGetProperty("image", out var imgArr) &&
-                            imgArr.ValueKind == JsonValueKind.Array &&
-                            imgArr.GetArrayLength() > 0)
-                        {
-                            if (imgArr[0].TryGetProperty("url", out var uProp))
-                            {
-                                imgUrl = uProp.GetString() ?? "";
-                            }
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(name))
-                        {
-                            var artistStr = artists.Count > 0 ? string.Join(", ", artists) : "Spotify";
-                            var finalDur = durationMs > 0 ? durStr : "3:30";
-
-                            _trackMetadataCache[trackId] = (name, artistStr, imgUrl, finalDur);
-
-                            return new SpotifyTrackItem
-                            {
-                                Id = trackId,
-                                TrackNumber = trackNumber,
-                                Title = name,
-                                Artist = artistStr,
-                                ImageUrl = imgUrl,
-                                DurationString = finalDur,
-                                IsSelected = true
-                            };
-                        }
                     }
                 }
-            }
-        }
-        catch { }
+                catch (Exception ex)
+                {
+                    LogService.Debug($"Batch tracks fetch error: {ex.Message}", "SPOTIFY");
+                }
 
-        // 2. Fallback: oEmbed
-        try
+                var done = Interlocked.Add(ref processedCount, batch.Count);
+                progress?.Report($"Wczytano {Math.Min(done, totalCount)} z {totalCount} utworów...");
+            });
+        }
+
+        // 3. Assemble complete in-order list
+        for (int i = 0; i < totalCount; i++)
         {
-            var oembedUrl = $"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{trackId}";
-            using var oReq = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
-            var oResp = await _http.SendAsync(oReq, ct);
-            if (oResp.IsSuccessStatusCode)
+            if (resolvedDict.TryGetValue(i, out var resolved))
             {
-                var oJson = await oResp.Content.ReadAsStringAsync(ct);
-                using var oDoc = JsonDocument.Parse(oJson);
-                var oRoot = oDoc.RootElement;
-
-                var titleRaw = oRoot.TryGetProperty("title", out var titProp) ? titProp.GetString() ?? "" : "";
-                var thumb = oRoot.TryGetProperty("thumbnail_url", out var thumbProp) ? thumbProp.GetString() ?? "" : "";
-
-                string artist = "Spotify";
-                string songTitle = titleRaw;
-
-                if (titleRaw.Contains(" - "))
+                tracks.Add(resolved);
+            }
+            else
+            {
+                var tId = trackUris[i];
+                tracks.Add(new SpotifyTrackItem
                 {
-                    var parts = titleRaw.Split(new[] { " - " }, 2, StringSplitOptions.TrimEntries);
-                    artist = parts[0];
-                    songTitle = parts[1];
-                }
-
-                if (!string.IsNullOrWhiteSpace(songTitle))
-                {
-                    _trackMetadataCache[trackId] = (songTitle, artist, thumb, "3:30");
-                    return new SpotifyTrackItem
-                    {
-                        Id = trackId,
-                        TrackNumber = trackNumber,
-                        Title = songTitle,
-                        Artist = artist,
-                        ImageUrl = thumb,
-                        DurationString = "3:30",
-                        IsSelected = true
-                    };
-                }
+                    Id = tId,
+                    TrackNumber = i + 1,
+                    Title = $"Utwór {i + 1}",
+                    Artist = "Spotify",
+                    DurationString = "3:30",
+                    IsSelected = true
+                });
             }
         }
-        catch { }
 
-        return new SpotifyTrackItem
-        {
-            Id = trackId,
-            TrackNumber = trackNumber,
-            Title = $"Utwór {trackNumber}",
-            Artist = "Spotify",
-            DurationString = "3:30",
-            IsSelected = true
-        };
+        return tracks;
     }
 }

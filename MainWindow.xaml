@@ -1,4 +1,4 @@
-﻿<Window x:Class="ExportX.MainWindow"
+<Window x:Class="ExportX.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:ExportX.Models"
@@ -89,7 +89,7 @@
                 <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="10,4" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="📓 EXPORT.X" FontWeight="Black" FontSize="16" Foreground="{StaticResource BrushBlackBorder}" />
-                        <TextBlock Text="v1.5.4" FontWeight="Bold" FontSize="11" Foreground="#444444" Margin="6,3,0,0" />
+                        <TextBlock Text="v1.5.5" FontWeight="Bold" FontSize="11" Foreground="#444444" Margin="6,3,0,0" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonCyan}" Padding="8,4">
