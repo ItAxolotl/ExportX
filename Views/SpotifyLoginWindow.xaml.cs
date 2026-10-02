@@ -88,15 +88,32 @@ public partial class SpotifyLoginWindow : Window
         _isChecking = true;
         try
         {
-            // Query Spotify Web internal token endpoint
+            // Comprehensive Spotify Web token extraction script
             const string script = @"(async () => {
                 try {
-                    const res = await fetch('https://open.spotify.com/get_access_token', { credentials: 'include' });
-                    if (res.ok) {
-                        const data = await res.json();
-                        return JSON.stringify(data);
+                    const r1 = await fetch('/get_access_token?reason=transport&productType=web_player');
+                    if (r1.ok) {
+                        const d1 = await r1.json();
+                        if (d1 && d1.accessToken && !d1.isAnonymous) return JSON.stringify(d1);
                     }
                 } catch(e) {}
+
+                try {
+                    const s = document.getElementById('session');
+                    if (s && s.textContent) {
+                        const d2 = JSON.parse(s.textContent);
+                        if (d2 && d2.accessToken && !d2.isAnonymous) return JSON.stringify(d2);
+                    }
+                } catch(e) {}
+
+                try {
+                    const r2 = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player');
+                    if (r2.ok) {
+                        const d3 = await r2.json();
+                        if (d3 && d3.accessToken && !d3.isAnonymous) return JSON.stringify(d3);
+                    }
+                } catch(e) {}
+
                 return 'null';
             })()";
 
@@ -162,6 +179,42 @@ public partial class SpotifyLoginWindow : Window
         {
             _isChecking = false;
         }
+    }
+
+    private async void SaveSessionFromWebView_Click(object sender, RoutedEventArgs e)
+    {
+        if (LoginWebView.CoreWebView2 == null) return;
+
+        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+        StatusBadgeText.Text = "⏳ WERYFIKACJA...";
+        StatusNote.Text = "Sprawdzanie aktywnej sesji Spotify...";
+
+        await CheckSessionStatusAsync();
+        if (_isSuccess) return;
+
+        try
+        {
+            var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
+            var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
+            var currentUrl = LoginWebView.Source?.ToString() ?? "";
+
+            if (spCookie != null && !string.IsNullOrWhiteSpace(spCookie.Value))
+            {
+                if (!currentUrl.Contains("open.spotify.com"))
+                {
+                    LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/");
+                    StatusNote.Text = "Przekierowywanie do odtwarzacza Spotify...";
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        MessageBox.Show(
+            "Upewnij się, że jesteś w pełni zalogowany w oknie powyżej.\n\nKliknij 'ODŚWIEŻ' lub poczekaj chwilę, aż strona główna Spotify się załaduje.",
+            "Weryfikacja sesji",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private async Task<bool> InjectCookiesIntoWebViewAsync(string cookiesFilePath)

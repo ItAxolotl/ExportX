@@ -49,15 +49,15 @@
                 </StackPanel>
 
                 <Button Grid.Column="2" 
-                        Content="⚡ POBIERZ Z PRZEGLĄDARKI" 
-                        Style="{StaticResource CyanButton}" 
+                        Content="✔ ZATWIERDŹ ZALOGOWANIE" 
+                        Style="{StaticResource GreenStartButton}" 
                         FontWeight="Black"
                         FontSize="11" 
                         Padding="12,6" 
-                        Margin="10,0,10,0"
+                        Margin="10,0,6,0"
                         VerticalAlignment="Center"
-                        ToolTip="Pobiera Twoje zalogowane konto Spotify z Brave, Chrome, Firefox, Opera lub Edge bez wpisywania hasła"
-                        Click="ExtractFromExternalBrowser_Click" />
+                        ToolTip="Kliknij, jeśli jesteś już zalogowany w oknie poniżej, aby natychmiast zapisać sesję"
+                        Click="SaveSessionFromWebView_Click" />
 
                 <Border Grid.Column="3" x:Name="StatusBadge" Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="8,4" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusBadgeText" Text="OCZEKIWANIE NA LOGOWANIE" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" />
@@ -125,6 +125,14 @@
                        VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="⚡ Z PRZEGLĄDARKI" 
+                        Style="{StaticResource CyanButton}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="10,6" 
+                        Margin="0,0,6,0"
+                        Click="ExtractFromExternalBrowser_Click" />
+
                 <Button Content="🌐 OTWÓRZ W PRZEGLĄDARCE" 
                         Style="{StaticResource BrutalistButton}" 
                         Background="{StaticResource BrushPaperWhite}" 
