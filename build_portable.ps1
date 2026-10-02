@@ -8,6 +8,9 @@ Write-Host ""
 $dist = ".\dist\ExportX-Portable"
 $zip = ".\dist\ExportX-Portable.zip"
 
+# Stop any running instances so files are not locked
+Stop-Process -Name "ExportX" -Force -ErrorAction SilentlyContinue
+
 if (Test-Path $dist) { 
     try { Remove-Item -Recurse -Force $dist } catch { }
 }
@@ -71,7 +74,14 @@ Aby uruchomic program, kliknij dwukrotnie w: ExportX.exe
 Set-Content -Path "$dist\README_PORTABLE.txt" -Value $readme -Encoding UTF8
 
 Write-Host "[3/4] Pakowanie do archiwum ZIP ($zip)..." -ForegroundColor Green
-Compress-Archive -Path "$dist\*" -DestinationPath $zip -Force
+$absDist = (Resolve-Path $dist).Path
+$absZip = [System.IO.Path]::GetFullPath($zip)
+
+if (Test-Path $absZip) { 
+    Remove-Item -Force $absZip 
+}
+
+& tar.exe -acf "$absZip" -C "$absDist" .
 
 Write-Host ""
 Write-Host "=======================================================" -ForegroundColor Cyan
