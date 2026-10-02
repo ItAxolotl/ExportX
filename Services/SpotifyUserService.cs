@@ -138,84 +138,17 @@ public class SpotifyUserService
     public async Task<List<SpotifyPlaylistSummary>> GetUserPlaylistsAsync(string accessToken, IProgress<string>? progress = null)
     {
         var playlists = new List<SpotifyPlaylistSummary>();
+        
+        // 1. Check cached playlists from active user session
+        if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
+        {
+            playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
+            return playlists;
+        }
+
         if (string.IsNullOrWhiteSpace(accessToken)) return playlists;
 
-        // 1. First try spclient user-profile-view playlists (supports all user playlists without 429 rate limit)
-        try
-        {
-            int offset = 0;
-            const int limit = 50;
-            bool hasMore = true;
-
-            while (hasMore)
-            {
-                var url = $"https://spclient.wg.spotify.com/user-profile-view/v3/profile/me/playlists?offset={offset}&limit={limit}";
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-                req.Headers.TryAddWithoutValidation("app-platform", "WebPlayer");
-
-                var resp = await _http.SendAsync(req);
-                if (!resp.IsSuccessStatusCode) break;
-
-                var json = await resp.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("public_playlists", out var items) && items.ValueKind == JsonValueKind.Array)
-                {
-                    int batchCount = 0;
-                    foreach (var item in items.EnumerateArray())
-                    {
-                        if (item.ValueKind != JsonValueKind.Object) continue;
-
-                        var uri = item.TryGetProperty("uri", out var uProp) ? uProp.GetString() ?? "" : "";
-                        var id = uri.StartsWith("spotify:playlist:") ? uri.Substring("spotify:playlist:".Length) : uri;
-                        var name = item.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "Bez nazwy" : "Bez nazwy";
-                        var rawImg = item.TryGetProperty("image_url", out var imgProp) ? imgProp.GetString() : null;
-                        var ownerName = item.TryGetProperty("owner_name", out var oNameProp) ? oNameProp.GetString() ?? "" : "";
-
-                        if (!string.IsNullOrEmpty(id))
-                        {
-                            playlists.Add(new SpotifyPlaylistSummary
-                            {
-                                Id = id,
-                                Name = name,
-                                OwnerName = ownerName,
-                                ImageUrl = ResolveSpotifyImageUrl(rawImg),
-                                IsPublic = true
-                            });
-                            batchCount++;
-                        }
-                    }
-
-                    progress?.Report($"Wczytano {playlists.Count} playlist użytkownika...");
-
-                    if (batchCount < limit)
-                    {
-                        hasMore = false;
-                    }
-                    else
-                    {
-                        offset += batchCount;
-                    }
-                }
-                else
-                {
-                    hasMore = false;
-                }
-            }
-
-            if (playlists.Count > 0)
-            {
-                return playlists;
-            }
-        }
-        catch (Exception ex)
-        {
-            LogService.Debug($"Spclient playlists fetch error: {ex.Message}", "SPOTIFY");
-        }
-
-        // 2. Fallback to public Web API /v1/me/playlists
+        // 2. Try public Web API /v1/me/playlists
         string? nextUrl = "https://api.spotify.com/v1/me/playlists?limit=50";
 
         try
@@ -226,11 +159,7 @@ public class SpotifyUserService
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
 
                 var resp = await _http.SendAsync(req);
-                if (!resp.IsSuccessStatusCode)
-                {
-                    LogService.Warn($"Błąd pobierania playlist użytkownika: HTTP {(int)resp.StatusCode}", "SPOTIFY");
-                    break;
-                }
+                if (!resp.IsSuccessStatusCode) break;
 
                 var json = await resp.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(json);
@@ -293,7 +222,7 @@ public class SpotifyUserService
         }
         catch (Exception ex)
         {
-            LogService.Warn($"Błąd pobierania playlist użytkownika: {ex.Message}", "SPOTIFY");
+            LogService.Debug($"Błąd pobierania playlist użytkownika: {ex.Message}", "SPOTIFY");
         }
 
         return playlists;
