@@ -323,30 +323,51 @@ public partial class SpotifyLoginWindow : Window
                         try {
                             const list = [];
                             const seen = new Set();
+
+                            function add(a, tag) {
+                                try {
+                                    const href = a.getAttribute('href') || '';
+                                    const m = href.match(/\/playlist\/([a-zA-Z0-9]+)/);
+                                    if (!m) return;
+                                    const id = m[1];
+                                    if (seen.has(id)) return;
+
+                                    let title = (a.getAttribute('aria-label') || a.innerText || a.textContent || '').trim();
+                                    const lines = title.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                                    if (lines.length > 0) title = lines[0];
+                                    if (!title || title.toLowerCase() === 'playlist' || title.toLowerCase() === 'playlista') return;
+
+                                    let img = '';
+                                    const imgEl = a.querySelector('img') || a.closest('div')?.querySelector('img') || a.parentElement?.querySelector('img');
+                                    if (imgEl && imgEl.src) img = imgEl.src;
+
+                                    seen.add(id);
+                                    list.push({
+                                        Id: id,
+                                        Name: title,
+                                        ImageUrl: img,
+                                        OwnerName: tag || 'Moja playlista',
+                                        IsPublic: true
+                                    });
+                                } catch(e) {}
+                            }
+
+                            // 1. Home quick-access shortcut grid (the 8 main user playlists)
+                            const shortcuts = document.querySelectorAll('div[data-testid=""grid-container""] a[href*=""/playlist/""], div[data-testid=""shortcut-item""] a[href*=""/playlist/""], div[role=""grid""] a[href*=""/playlist/""]');
+                            shortcuts.forEach(a => add(a, 'Moja playlista'));
+
+                            // 2. Left sidebar library
+                            const libraryLinks = document.querySelectorAll('nav[aria-label*=""biblioteka"" i] a[href*=""/playlist/""], nav[aria-label*=""library"" i] a[href*=""/playlist/""], div[data-testid=""rootlist-container""] a[href*=""/playlist/""], div[aria-label*=""biblioteka"" i] a[href*=""/playlist/""]');
+                            libraryLinks.forEach(a => add(a, 'Biblioteka'));
+
+                            // 3. Fallback: Any other non-promo playlists
                             document.querySelectorAll('a[href*=""/playlist/""]').forEach(a => {
-                                const href = a.getAttribute('href') || '';
-                                const m = href.match(/\/playlist\/([a-zA-Z0-9]+)/);
-                                if (!m) return;
-                                const id = m[1];
-                                if (seen.has(id)) return;
-                                seen.add(id);
-
-                                let title = (a.getAttribute('aria-label') || a.innerText || a.textContent || '').trim();
-                                title = title.split('\n')[0].trim();
-                                if (!title || title.toLowerCase() === 'playlist' || title.toLowerCase() === 'playlista') return;
-
-                                let img = '';
-                                const imgEl = a.querySelector('img') || a.closest('div')?.querySelector('img') || a.parentElement?.querySelector('img');
-                                if (imgEl && imgEl.src) img = imgEl.src;
-
-                                list.push({
-                                    Id: id,
-                                    Name: title,
-                                    ImageUrl: img,
-                                    OwnerName: 'Moja playlista',
-                                    IsPublic: true
-                                });
+                                const section = a.closest('section');
+                                const heading = section?.querySelector('h2, [data-encore-id=""text""]')?.textContent || '';
+                                if (heading.match(/New Music|Radar|Odkryj|Popularne|Top|Listy przeboj\xF3w|Polecane|Editorial/i)) return;
+                                add(a, 'Playlista');
                             });
+
                             return JSON.stringify(list);
                         } catch(e) {
                             return '[]';
