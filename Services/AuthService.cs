@@ -87,13 +87,13 @@ public static class AuthService
             }
         }
 
-        // Direct Google Account Chooser & OAuth URL (Antigravity Style)
-        string googleLoginUrl = $"https://accounts.google.com/AccountChooser?service=youtube&continue={Uri.EscapeDataString($"http://127.0.0.1:{port}/callback")}";
+        // Standard Google & YouTube login URL (accepted by Google without Error 400)
+        string googleLoginUrl = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F";
 
         try
         {
             Process.Start(new ProcessStartInfo(googleLoginUrl) { UseShellExecute = true });
-            LogService.Info("Otwarto oficjalną stronę wyboru konta Google w domyślnej przeglądarce.", "AUTH");
+            LogService.Info("Otwarto oficjalną stronę logowania Google / YouTube w Twojej przeglądarce.", "AUTH");
         }
         catch (Exception ex)
         {
