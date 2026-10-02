@@ -91,7 +91,21 @@ public class ConfigService
     public static bool HasValidCookies()
     {
         var p = GetCookiesPath();
-        return File.Exists(p) && new FileInfo(p).Length > 50;
+        if (!File.Exists(p) || new FileInfo(p).Length < 100) return false;
+        try
+        {
+            var text = File.ReadAllText(p);
+            return text.Contains("LOGIN_INFO") || 
+                   text.Contains("__Secure-1PSID") || 
+                   text.Contains("__Secure-3PSID") || 
+                   text.Contains("SAPISID") || 
+                   text.Contains("SID\t") || 
+                   text.Contains("SSID\t");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static void DeleteCookies()

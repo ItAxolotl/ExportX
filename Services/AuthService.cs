@@ -29,7 +29,7 @@ public static class AuthService
     {
         try
         {
-            var url = "https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fwww.youtube.com";
+            var url = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F";
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             LogService.Info("Otwarto stronę wyboru konta Google w domyślnej przeglądarce.", "AUTH");
         }
