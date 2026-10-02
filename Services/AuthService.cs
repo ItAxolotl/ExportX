@@ -7,21 +7,46 @@ namespace ExportX.Services;
 
 public static class AuthService
 {
+    public static string DetectActiveOrTargetBrowser()
+    {
+        // 1. Check if any popular browser is currently running
+        var runningChecks = new (string procName, string browserKey)[]
+        {
+            ("brave", "brave"),
+            ("chrome", "chrome"),
+            ("opera", "opera"),
+            ("msedge", "edge"),
+            ("firefox", "firefox"),
+            ("vivaldi", "vivaldi")
+        };
+
+        foreach (var (procName, browserKey) in runningChecks)
+        {
+            if (Process.GetProcessesByName(procName).Length > 0)
+            {
+                return browserKey;
+            }
+        }
+
+        // 2. Otherwise detect system default from Windows Registry
+        return DetectDefaultBrowser();
+    }
+
     public static string DetectDefaultBrowser()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice");
             var progId = key?.GetValue("ProgId")?.ToString() ?? "";
-            if (progId.Contains("Brave", StringComparison.OrdinalIgnoreCase)) return "brave";
-            if (progId.Contains("Firefox", StringComparison.OrdinalIgnoreCase)) return "firefox";
+            if (progId.Contains("Opera", StringComparison.OrdinalIgnoreCase)) return "opera";
             if (progId.Contains("Chrome", StringComparison.OrdinalIgnoreCase)) return "chrome";
             if (progId.Contains("Edge", StringComparison.OrdinalIgnoreCase) || progId.Contains("MSEdge", StringComparison.OrdinalIgnoreCase)) return "edge";
-            if (progId.Contains("Opera", StringComparison.OrdinalIgnoreCase)) return "opera";
+            if (progId.Contains("Firefox", StringComparison.OrdinalIgnoreCase)) return "firefox";
+            if (progId.Contains("Brave", StringComparison.OrdinalIgnoreCase)) return "brave";
             if (progId.Contains("Vivaldi", StringComparison.OrdinalIgnoreCase)) return "vivaldi";
         }
         catch { }
-        return "brave";
+        return "chrome";
     }
 
     public static string GetProcessNameForBrowser(string browser) => browser.ToLowerInvariant() switch
@@ -31,6 +56,7 @@ public static class AuthService
         "brave" => "brave",
         "firefox" => "firefox",
         "opera" => "opera",
+        "operagx" => "opera",
         "vivaldi" => "vivaldi",
         _ => browser.ToLowerInvariant()
     };
@@ -130,7 +156,7 @@ public static class AuthService
             // Verify whether valid cookies were saved
             if (ConfigService.HasValidCookies())
             {
-                // Also copy to Roaming if we are portable, or to portable if we are Roaming
+                // Also sync to Roaming if we are portable, or to portable if we are Roaming
                 try
                 {
                     var appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ExportX", "youtube_cookies.txt");
@@ -167,7 +193,9 @@ public static class AuthService
             "chrome" => Path.Combine(progFiles, @"Google\Chrome\Application\chrome.exe"),
             "edge" => Path.Combine(progFilesX86, @"Microsoft\Edge\Application\msedge.exe"),
             "firefox" => Path.Combine(progFiles, @"Mozilla Firefox\firefox.exe"),
-            "opera" => Path.Combine(local, @"Programs\Opera\launcher.exe"),
+            "opera" => File.Exists(Path.Combine(local, @"Programs\Opera GX\launcher.exe")) 
+                ? Path.Combine(local, @"Programs\Opera GX\launcher.exe")
+                : Path.Combine(local, @"Programs\Opera\launcher.exe"),
             "vivaldi" => Path.Combine(local, @"Vivaldi\Application\vivaldi.exe"),
             _ => null
         };

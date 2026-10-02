@@ -315,8 +315,8 @@ public partial class YouTubeLoginWindow : Window
     {
         try
         {
-            var defaultBrowser = AuthService.DetectDefaultBrowser();
-            var procName = AuthService.GetProcessNameForBrowser(defaultBrowser);
+            var targetBrowser = AuthService.DetectActiveOrTargetBrowser();
+            var procName = AuthService.GetProcessNameForBrowser(targetBrowser);
             var isRunning = Process.GetProcessesByName(procName).Length > 0;
 
             // If the browser is currently running (locking files), ask for the 1-second restart immediately!
@@ -333,7 +333,7 @@ public partial class YouTubeLoginWindow : Window
                     StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
                     StatusBadgeText.Text = "⏳ POŁĄCZENIE W TOKU...";
 
-                    var (ok, msg) = await AuthService.ExtractCookiesWithQuickRestartAsync(defaultBrowser, progress =>
+                    var (ok, msg) = await AuthService.ExtractCookiesWithQuickRestartAsync(targetBrowser, progress =>
                     {
                         Dispatcher.Invoke(() => SessionInfoText.Text = progress);
                     });
@@ -344,7 +344,7 @@ public partial class YouTubeLoginWindow : Window
                         StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                         SessionInfoText.Text = "✔ Sukces! Sesja YouTube została pomyślnie zapisana.";
                         SessionSaved = true;
-                        MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {defaultBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {targetBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
                         DialogResult = true;
                         Close();
                         return;
@@ -365,9 +365,9 @@ public partial class YouTubeLoginWindow : Window
             // If the browser is not running, extract directly without restart
             StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
             StatusBadgeText.Text = "⏳ POBIERANIE SESJI...";
-            SessionInfoText.Text = $"Pobieranie danych sesji z {defaultBrowser.ToUpperInvariant()}...";
+            SessionInfoText.Text = $"Pobieranie danych sesji z {targetBrowser.ToUpperInvariant()}...";
 
-            var (directOk, directMsg) = await AuthService.ExtractCookiesWithQuickRestartAsync(defaultBrowser, progress =>
+            var (directOk, directMsg) = await AuthService.ExtractCookiesWithQuickRestartAsync(targetBrowser, progress =>
             {
                 Dispatcher.Invoke(() => SessionInfoText.Text = progress);
             });
@@ -378,7 +378,7 @@ public partial class YouTubeLoginWindow : Window
                 StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                 SessionInfoText.Text = "✔ Sukces! Sesja YouTube została pomyślnie zapisana.";
                 SessionSaved = true;
-                MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {defaultBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {targetBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
                 DialogResult = true;
                 Close();
                 return;
