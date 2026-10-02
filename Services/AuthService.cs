@@ -49,8 +49,9 @@ public static class AuthService
             var procName = GetProcessNameForBrowser(browser);
             var runningProcs = Process.GetProcessesByName(procName);
             string? browserExePath = null;
+            bool wasRunning = runningProcs.Length > 0;
 
-            if (runningProcs.Length > 0)
+            if (wasRunning)
             {
                 try
                 {
@@ -58,32 +59,35 @@ public static class AuthService
                 }
                 catch { }
 
-                // Fallback default paths if MainModule is inaccessible
                 if (string.IsNullOrEmpty(browserExePath) || !File.Exists(browserExePath))
                 {
                     browserExePath = FindBrowserExePath(browser);
                 }
 
-                // If it's a Chromium browser, close it gracefully to unlock the SQLite DB
+                // Force kill all child processes of the browser to release SQLite database file locks
                 if (browser != "firefox")
                 {
-                    progressCallback?.Invoke($"Zamykanie {browser.ToUpperInvariant()} na 1 sekundę w celu zwolnienia bazy sesji...");
-                    foreach (var p in runningProcs)
+                    progressCallback?.Invoke($"Zwalnianie bazy sesji z {browser.ToUpperInvariant()}...");
+                    try
                     {
-                        try { p.CloseMainWindow(); } catch { }
+                        var killPsi = new ProcessStartInfo
+                        {
+                            FileName = "taskkill.exe",
+                            Arguments = $"/F /T /IM {procName}.exe",
+                            CreateNoWindow = true,
+                            UseShellExecute = false
+                        };
+                        using var kp = Process.Start(killPsi);
+                        if (kp != null) await kp.WaitForExitAsync();
                     }
-
-                    await Task.Delay(800);
-
-                    // Re-check and force kill if still lingering in background
-                    var lingering = Process.GetProcessesByName(procName);
-                    foreach (var p in lingering)
-                    {
-                        try { p.Kill(); } catch { }
-                    }
+                    catch { }
 
                     await Task.Delay(400);
                 }
+            }
+            else
+            {
+                browserExePath = FindBrowserExePath(browser);
             }
 
             // Execute yt-dlp extraction
@@ -112,19 +116,13 @@ public static class AuthService
                 }
             }
 
-            // Immediately restart the browser if it was previously running
-            if (!string.IsNullOrEmpty(browserExePath) && File.Exists(browserExePath))
+            // Immediately restart the browser if it was running before
+            if (wasRunning && !string.IsNullOrEmpty(browserExePath) && File.Exists(browserExePath))
             {
                 progressCallback?.Invoke($"Wznawianie przeglądarki {browser.ToUpperInvariant()} z otwartymi kartami...");
                 try
                 {
-                    var rPsi = new ProcessStartInfo
-                    {
-                        FileName = browserExePath,
-                        UseShellExecute = true
-                    };
-                    rPsi.ArgumentList.Add("--restore-last-session");
-                    Process.Start(rPsi);
+                    Process.Start(new ProcessStartInfo(browserExePath) { UseShellExecute = true });
                 }
                 catch { }
             }
@@ -132,11 +130,24 @@ public static class AuthService
             // Verify whether valid cookies were saved
             if (ConfigService.HasValidCookies())
             {
+                // Also copy to Roaming if we are portable, or to portable if we are Roaming
+                try
+                {
+                    var appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ExportX", "youtube_cookies.txt");
+                    if (targetCookiesPath != appDataPath && File.Exists(targetCookiesPath))
+                    {
+                        var adDir = Path.GetDirectoryName(appDataPath);
+                        if (!string.IsNullOrEmpty(adDir) && !Directory.Exists(adDir)) Directory.CreateDirectory(adDir);
+                        File.Copy(targetCookiesPath, appDataPath, true);
+                    }
+                }
+                catch { }
+
                 LogService.Success($"Pomyślnie pobrano autentyczną sesję YouTube z przeglądarki {browser.ToUpperInvariant()}!", "AUTH");
                 return (true, $"Pomyślnie pobrano sesję z przeglądarki {browser.ToUpperInvariant()} bez konieczności wpisywania haseł!");
             }
 
-            return (false, $"Nie znaleziono aktywnego logowania do YouTube w przeglądarce {browser.ToUpperInvariant()}.");
+            return (false, $"Nie udało się pobrać aktywnej sesji YouTube z przeglądarki {browser.ToUpperInvariant()}.");
         }
         catch (Exception ex)
         {
