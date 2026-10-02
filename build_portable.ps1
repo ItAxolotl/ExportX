@@ -78,11 +78,14 @@ $absZip = [System.IO.Path]::GetFullPath($zip)
 if (Test-Path $absZip) { 
     Remove-Item -Force $absZip 
 }
-
-& tar.exe -acf "$absZip" -C "$absDist" .
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($absDist, $absZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 
 # Also create ExportX.zip as standard release package
 $exportxZip = [System.IO.Path]::GetFullPath(".\dist\ExportX.zip")
+if (Test-Path $exportxZip) { 
+    Remove-Item -Force $exportxZip 
+}
 Copy-Item "$absZip" "$exportxZip" -Force
 
 Write-Host ""
