@@ -120,6 +120,12 @@ public partial class SpotifyBrowserWindow : Window
         {
             var list = await _spotifyUserService.GetUserPlaylistsAsync(token, progress);
             _playlists.Clear();
+
+            if (list.Count == 0 && SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
+            {
+                list = SpotifyAuthService.CurrentSession.CachedPlaylists;
+            }
+
             foreach (var p in list)
             {
                 _playlists.Add(p);

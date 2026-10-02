@@ -313,7 +313,105 @@ public partial class SpotifyLoginWindow : Window
             StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
 
             string? spDc = await GetSpDcCookieAsync();
-            SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
+            List<SpotifyPlaylistSummary> extractedPlaylists = new();
+
+            try
+            {
+                if (LoginWebView.CoreWebView2 != null)
+                {
+                    const string extractScript = @"(() => {
+                        try {
+                            const list = [];
+                            const seen = new Set();
+                            document.querySelectorAll('a[href*=""/playlist/""]').forEach(a => {
+                                const href = a.getAttribute('href') || '';
+                                const m = href.match(/\/playlist\/([a-zA-Z0-9]+)/);
+                                if (!m) return;
+                                const id = m[1];
+                                if (seen.has(id)) return;
+                                seen.add(id);
+
+                                let title = (a.getAttribute('aria-label') || a.innerText || a.textContent || '').trim();
+                                title = title.split('\n')[0].trim();
+                                if (!title || title.toLowerCase() === 'playlist' || title.toLowerCase() === 'playlista') return;
+
+                                let img = '';
+                                const imgEl = a.querySelector('img') || a.closest('div')?.querySelector('img') || a.parentElement?.querySelector('img');
+                                if (imgEl && imgEl.src) img = imgEl.src;
+
+                                list.push({
+                                    Id: id,
+                                    Name: title,
+                                    ImageUrl: img,
+                                    OwnerName: 'Moja playlista',
+                                    IsPublic: true
+                                });
+                            });
+                            return JSON.stringify(list);
+                        } catch(e) {
+                            return '[]';
+                        }
+                    })()";
+
+                    var json = await LoginWebView.CoreWebView2.ExecuteScriptAsync(extractScript);
+                    if (!string.IsNullOrWhiteSpace(json) && json != "null" && json != "\"[]\"")
+                    {
+                        var unescaped = JsonSerializer.Deserialize<string>(json);
+                        if (!string.IsNullOrWhiteSpace(unescaped))
+                        {
+                            var items = JsonSerializer.Deserialize<List<SpotifyPlaylistSummary>>(unescaped);
+                            if (items != null && items.Count > 0)
+                            {
+                                extractedPlaylists.AddRange(items);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // Also check profile avatar / name from DOM if default
+            if (profile == null || profile.DisplayName == "Użytkownik Spotify")
+            {
+                try
+                {
+                    if (LoginWebView.CoreWebView2 != null)
+                    {
+                        const string userScript = @"(() => {
+                            try {
+                                const btn = document.querySelector('button[data-testid=""user-widget-link""]') || document.querySelector('figure[data-testid=""user-widget-avatar""]');
+                                const img = btn?.querySelector('img')?.src || '';
+                                const name = btn?.getAttribute('aria-label') || '';
+                                return JSON.stringify({ name: name, avatar: img });
+                            } catch(e) { return '{}'; }
+                        })()";
+                        var userJson = await LoginWebView.CoreWebView2.ExecuteScriptAsync(userScript);
+                        if (!string.IsNullOrWhiteSpace(userJson) && userJson != "null")
+                        {
+                            var unescaped = JsonSerializer.Deserialize<string>(userJson);
+                            if (!string.IsNullOrWhiteSpace(unescaped))
+                            {
+                                using var uDoc = JsonDocument.Parse(unescaped);
+                                var uName = uDoc.RootElement.TryGetProperty("name", out var nP) ? nP.GetString() : null;
+                                var uAvatar = uDoc.RootElement.TryGetProperty("avatar", out var aP) ? aP.GetString() : null;
+                                if (!string.IsNullOrWhiteSpace(uName))
+                                {
+                                    profile = new SpotifyUserProfile
+                                    {
+                                        Id = "me",
+                                        DisplayName = uName.Replace("Konto użytkownika ", "").Replace("User account ", "").Trim(),
+                                        AvatarUrl = uAvatar ?? "",
+                                        Product = "spotify"
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc, extractedPlaylists);
 
             MessageBox.Show(
                 $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nTwoje playlisty i polubione utwory są teraz dostępne.",

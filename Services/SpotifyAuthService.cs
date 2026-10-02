@@ -10,6 +10,7 @@ public class SpotifySessionData
     public DateTime ExpirationUtc { get; set; } = DateTime.MinValue;
     public SpotifyUserProfile? UserProfile { get; set; }
     public string SpDcCookie { get; set; } = string.Empty;
+    public List<SpotifyPlaylistSummary> CachedPlaylists { get; set; } = new();
 }
 
 public class SpotifyAuthService
@@ -76,7 +77,7 @@ public class SpotifyAuthService
         }
     }
 
-    public static void SaveSession(string accessToken, int expiresInSeconds, SpotifyUserProfile? profile, string? spDc = null)
+    public static void SaveSession(string accessToken, int expiresInSeconds, SpotifyUserProfile? profile, string? spDc = null, List<SpotifyPlaylistSummary>? playlists = null)
     {
         lock (_lock)
         {
@@ -85,7 +86,8 @@ public class SpotifyAuthService
                 AccessToken = accessToken.Trim(),
                 ExpirationUtc = DateTime.UtcNow.AddSeconds(Math.Max(300, expiresInSeconds - 60)),
                 UserProfile = profile,
-                SpDcCookie = spDc ?? _session.SpDcCookie
+                SpDcCookie = spDc ?? _session.SpDcCookie,
+                CachedPlaylists = (playlists != null && playlists.Count > 0) ? playlists : _session.CachedPlaylists
             };
 
             try
