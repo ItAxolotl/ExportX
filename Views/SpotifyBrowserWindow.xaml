@@ -51,6 +51,16 @@
 
                 <!-- Account Actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ExtractFromBrowserButton"
+                            Content="⚡ POBIERZ Z PRZEGLĄDARKI" 
+                            Style="{StaticResource CyanButton}" 
+                            FontWeight="Black" 
+                            FontSize="11" 
+                            Padding="10,5" 
+                            Margin="0,0,6,0" 
+                            ToolTip="Pobierz zalogowane konto Spotify bezpośrednio z Brave, Chrome, Firefox, Opera lub Edge"
+                            Click="ExtractFromBrowser_Click" />
+
                     <Button x:Name="LoginButton"
                             Content="🔑 ZALOGUJ DO SPOTIFY" 
                             Style="{StaticResource GreenStartButton}" 

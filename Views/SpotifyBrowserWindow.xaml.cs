@@ -337,6 +337,69 @@ public partial class SpotifyBrowserWindow : Window
         }
     }
 
+    private async void ExtractFromBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var targetBrowser = AuthService.DetectActiveOrTargetBrowser();
+            var procName = AuthService.GetProcessNameForBrowser(targetBrowser);
+            var isRunning = Process.GetProcessesByName(procName).Length > 0;
+
+            if (isRunning)
+            {
+                var ask = MessageBox.Show(
+                    "Czy chcesz, aby ExportX zrestartował przeglądarkę i zautoryzował twoje konto Spotify?\n\nTwoje otwarte karty zostaną automatycznie przywrócone!",
+                    "Autoryzacja konta Spotify",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (ask == MessageBoxResult.Yes)
+                {
+                    GlobalStatusText.Text = $"Pobieranie sesji Spotify z {targetBrowser.ToUpperInvariant()}...";
+                    var (ok, msg, profile) = await AuthService.ExtractSpotifyCookiesWithQuickRestartAsync(targetBrowser, progress =>
+                    {
+                        Dispatcher.Invoke(() => GlobalStatusText.Text = progress);
+                    });
+
+                    if (ok)
+                    {
+                        UpdateAccountUi();
+                        MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {profile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
+                        await LoadUserPlaylistsAsync();
+                        return;
+                    }
+                    else
+                    {
+                        MessageBox.Show(msg, "Błąd pobierania sesji Spotify", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                return;
+            }
+
+            // Browser not running
+            GlobalStatusText.Text = $"Pobieranie danych Spotify z {targetBrowser.ToUpperInvariant()}...";
+            var (directOk, directMsg, directProfile) = await AuthService.ExtractSpotifyCookiesWithQuickRestartAsync(targetBrowser, progress =>
+            {
+                Dispatcher.Invoke(() => GlobalStatusText.Text = progress);
+            });
+
+            if (directOk)
+            {
+                UpdateAccountUi();
+                MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {directProfile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
+                await LoadUserPlaylistsAsync();
+            }
+            else
+            {
+                MessageBox.Show(directMsg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Błąd podczas pobierania sesji z przeglądarki: {ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void Logout_Click(object sender, RoutedEventArgs e)
     {
         var res = MessageBox.Show(

@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="🟢 LOGOWANIE DO SPOTIFY"
-        Height="700" Width="880"
-        MinHeight="550" MinWidth="700"
+        Height="720" Width="940"
+        MinHeight="550" MinWidth="750"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource NotebookGridPatternBrush}"
         WindowStyle="SingleBorderWindow"
@@ -31,6 +31,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="🟢" FontSize="26" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -40,14 +41,25 @@
                                FontWeight="Black" 
                                FontSize="15" 
                                Foreground="{StaticResource BrushBlackBorder}" />
-                    <TextBlock Text="Zaloguj się do swojego konta Spotify (email, Google, Facebook lub Apple), aby przeglądać i pobierać swoje prywatne i publiczne playlisty oraz polubione utwory." 
+                    <TextBlock Text="Zaloguj się w oknie poniżej LUB kliknij przycisk obok, aby pobrać sesję bezpośrednio ze swojej przeglądarki bez wpisywania haseł!" 
                                FontSize="11" 
                                FontWeight="SemiBold" 
                                Foreground="#222222" 
                                TextWrapping="Wrap" />
                 </StackPanel>
 
-                <Border Grid.Column="2" x:Name="StatusBadge" Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="8,4" VerticalAlignment="Center">
+                <Button Grid.Column="2" 
+                        Content="⚡ POBIERZ Z PRZEGLĄDARKI" 
+                        Style="{StaticResource CyanButton}" 
+                        FontWeight="Black"
+                        FontSize="11" 
+                        Padding="12,6" 
+                        Margin="10,0,10,0"
+                        VerticalAlignment="Center"
+                        ToolTip="Pobiera Twoje zalogowane konto Spotify z Brave, Chrome, Firefox, Opera lub Edge bez wpisywania hasła"
+                        Click="ExtractFromExternalBrowser_Click" />
+
+                <Border Grid.Column="3" x:Name="StatusBadge" Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="8,4" VerticalAlignment="Center">
                     <TextBlock x:Name="StatusBadgeText" Text="OCZEKIWANIE NA LOGOWANIE" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" />
                 </Border>
             </Grid>
@@ -60,22 +72,37 @@
 
                 <!-- Loading / Fallback Overlay -->
                 <Border x:Name="LoadingOverlay" Background="#F6F4ED" Visibility="Visible">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540">
                         <TextBlock x:Name="OverlayTitle" Text="⏳ Inicjalizacja logowania Spotify..." FontWeight="Black" FontSize="14" Foreground="{StaticResource BrushBlackBorder}" HorizontalAlignment="Center" />
                         <TextBlock x:Name="OverlaySubtitle" Text="Proszę czekać, przygotowujemy bezpieczne środowisko logowania..." FontSize="11" Foreground="#666666" Margin="0,4,0,12" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
 
                         <!-- Fallback panel if WebView2 runtime is missing -->
                         <StackPanel x:Name="FallbackPanel" Visibility="Collapsed">
-                            <TextBlock Text="Nie udało się załadować wbudowanego okna. Możesz wpisać swój token użytkownika Spotify (Bearer Token) ręcznie:" FontSize="11" FontWeight="Bold" Margin="0,0,0,8" TextWrapping="Wrap" TextAlignment="Center" />
+                            <TextBlock Text="Możesz otworzyć stronę w zewnętrznej przeglądarce i pobrać sesję jednym kliknięciem:" FontSize="11" FontWeight="Bold" Margin="0,0,0,8" TextWrapping="Wrap" TextAlignment="Center" />
                             
-                            <TextBox x:Name="ManualTokenTextBox" Style="{StaticResource BrutalistTextBox}" FontSize="11" Padding="8,6" Margin="0,0,0,8" />
+                            <Button Content="🌐 OTWÓRZ SPOTIFY W PRZEGLĄDARCE" 
+                                    Style="{StaticResource CyanButton}" 
+                                    FontWeight="Black" 
+                                    FontSize="11" 
+                                    Padding="14,8" 
+                                    Margin="0,0,0,8"
+                                    Click="OpenInExternalBrowser_Click" />
 
-                            <Button Content="💾 ZAPISZ TOKEN" 
+                            <Button Content="⚡ POBIERZ SESJĘ Z PRZEGLĄDARKI" 
                                     Style="{StaticResource GreenStartButton}" 
                                     FontWeight="Black" 
                                     FontSize="11" 
                                     Padding="14,8" 
-                                    Click="SaveManualToken_Click" />
+                                    Margin="0,0,0,8"
+                                    Click="ExtractFromExternalBrowser_Click" />
+
+                            <Button Content="📥 IMPORTUJ PLIK COOKIES.TXT" 
+                                    Style="{StaticResource BrutalistButton}" 
+                                    Background="{StaticResource BrushPaperWhite}"
+                                    FontWeight="Bold" 
+                                    FontSize="11" 
+                                    Padding="14,8" 
+                                    Click="ImportCookiesFile_Click" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -98,13 +125,40 @@
                        VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Content="🔄 ODŚWIEŻ STRONĘ" 
+                <Button Content="🌐 OTWÓRZ W PRZEGLĄDARCE" 
                         Style="{StaticResource BrutalistButton}" 
                         Background="{StaticResource BrushPaperWhite}" 
                         FontWeight="Bold" 
                         FontSize="11" 
-                        Padding="12,6" 
-                        Margin="0,0,8,0"
+                        Padding="10,6" 
+                        Margin="0,0,6,0"
+                        Click="OpenInExternalBrowser_Click" />
+
+                <Button Content="📥 IMPORTUJ COOKIES.TXT" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="10,6" 
+                        Margin="0,0,6,0"
+                        Click="ImportCookiesFile_Click" />
+
+                <Button Content="🍪 WKLEJ SP_DC" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="10,6" 
+                        Margin="0,0,6,0"
+                        Click="PasteSpDc_Click" />
+
+                <Button Content="🔄 ODŚWIEŻ" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="10,6" 
+                        Margin="0,0,6,0"
                         Click="RefreshPage_Click" />
 
                 <Button Content="❌ ANULUJ" 
@@ -112,7 +166,7 @@
                         Background="{StaticResource BrushPaperWhite}" 
                         FontWeight="Bold" 
                         FontSize="11" 
-                        Padding="14,6" 
+                        Padding="12,6" 
                         Click="Cancel_Click" />
             </StackPanel>
         </Grid>
