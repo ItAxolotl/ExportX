@@ -103,7 +103,7 @@ public partial class SpotifyLoginWindow : Window
         {
             var uri = e.Request?.Uri ?? "";
 
-            // Intercept response from get_access_token endpoint
+            // 1. Intercept response from get_access_token endpoint
             if (uri.Contains("get_access_token") && e.Response != null && e.Response.StatusCode == 200)
             {
                 try
@@ -116,10 +116,33 @@ public partial class SpotifyLoginWindow : Window
                         if (!string.IsNullOrWhiteSpace(body) && body.Contains("accessToken"))
                         {
                             await Dispatcher.InvokeAsync(async () => await ProcessTokenJsonAsync(body));
+                            return;
                         }
                     }
                 }
                 catch { }
+            }
+
+            // 2. Intercept Authorization Bearer tokens if user is authenticated (has sp_dc cookie)
+            if (e.Request != null && e.Request.Headers != null)
+            {
+                string? auth = null;
+                if (e.Request.Headers.Contains("authorization")) auth = e.Request.Headers.GetHeader("authorization");
+                else if (e.Request.Headers.Contains("Authorization")) auth = e.Request.Headers.GetHeader("Authorization");
+
+                if (!string.IsNullOrEmpty(auth) && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var token = auth.Substring("Bearer ".Length).Trim();
+                    if (token.Length > 40 && (token.StartsWith("BQ") || token.Length > 100))
+                    {
+                        var spDc = await GetSpDcCookieAsync();
+                        if (!string.IsNullOrWhiteSpace(spDc))
+                        {
+                            await Dispatcher.InvokeAsync(async () => await ProcessTokenAsync(token, 3600));
+                            return;
+                        }
+                    }
+                }
             }
         }
         catch { }
@@ -134,7 +157,13 @@ public partial class SpotifyLoginWindow : Window
     {
         try
         {
-            var msg = e.TryGetWebMessageAsString();
+            string? msg = null;
+            try { msg = e.TryGetWebMessageAsString(); } catch { }
+            if (string.IsNullOrEmpty(msg))
+            {
+                try { msg = e.WebMessageAsJson; } catch { }
+            }
+
             if (!string.IsNullOrEmpty(msg) && msg.Contains("accessToken"))
             {
                 await Dispatcher.InvokeAsync(async () => await ProcessTokenJsonAsync(msg));
@@ -160,6 +189,27 @@ public partial class SpotifyLoginWindow : Window
         _isChecking = true;
         try
         {
+            // 1. Synchronous check of session / config DOM elements
+            const string syncScript = @"(() => {
+                try {
+                    var s = document.getElementById('session');
+                    if (s && s.textContent) return s.textContent;
+                } catch(e) {}
+                try {
+                    var c = document.getElementById('config');
+                    if (c && c.textContent) return c.textContent;
+                } catch(e) {}
+                return '';
+            })()";
+
+            var domJson = await LoginWebView.CoreWebView2.ExecuteScriptAsync(syncScript);
+            if (!string.IsNullOrWhiteSpace(domJson) && domJson != "null" && domJson != "\"\"" && domJson.Contains("accessToken"))
+            {
+                await ProcessTokenJsonAsync(domJson);
+                if (_isSuccess) return;
+            }
+
+            // 2. Async fetch via postMessage
             const string script = @"(function() {
                 try {
                     fetch('/get_access_token?reason=transport&productType=web_player')
@@ -277,18 +327,12 @@ public partial class SpotifyLoginWindow : Window
         StatusBadgeText.Text = "⏳ WERYFIKACJA...";
         StatusNote.Text = "Pobieranie aktywnej sesji Spotify...";
 
-        // 1. Trigger JavaScript fetch in the page
+        // 1. Check if we have token from synchronous DOM
         await CheckSessionStatusAsync();
+        if (_isSuccess) return;
 
         // 2. Read cookies
         var spDc = await GetSpDcCookieAsync();
-        if (_isSuccess) return;
-
-        if (!string.IsNullOrWhiteSpace(spDc))
-        {
-            await Task.Delay(600);
-            if (_isSuccess) return;
-        }
 
         var currentUrl = LoginWebView.Source?.ToString() ?? "";
         if (!currentUrl.Contains("open.spotify.com"))
@@ -298,16 +342,26 @@ public partial class SpotifyLoginWindow : Window
         }
         else
         {
+            // Execute force postMessage script
             const string forceScript = @"(function() {
-                fetch('/get_access_token?reason=transport&productType=web_player')
-                    .then(function(r) { return r.json(); })
-                    .then(function(d) {
-                        if (d && d.accessToken) {
-                            window.chrome.webview.postMessage(JSON.stringify(d));
-                        }
-                    });
+                try {
+                    fetch('/get_access_token?reason=transport&productType=web_player')
+                        .then(function(r) { return r.json(); })
+                        .then(function(d) {
+                            if (d && d.accessToken) {
+                                window.chrome.webview.postMessage(JSON.stringify(d));
+                            }
+                        });
+                } catch(e) {}
             })();";
             _ = LoginWebView.CoreWebView2.ExecuteScriptAsync(forceScript);
+
+            // Also reload if not captured within 500ms
+            await Task.Delay(500);
+            if (!_isSuccess)
+            {
+                LoginWebView.CoreWebView2.Reload();
+            }
         }
     }
 
