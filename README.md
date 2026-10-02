@@ -1,102 +1,74 @@
-# 📓 EXPORT.X // Neo-Brutalism Music & Video Downloader
+# 📓 ExportX
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-00F0FF?style=flat-square&logo=windows)](https://github.com)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-00F0FF?style=flat-square&logo=windows)](https://github.com/ItAxolotl/ExportX)
 [![Framework](https://img.shields.io/badge/.NET-10.0%20WPF-FFE600?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com)
 [![License](https://img.shields.io/badge/License-MIT-4ADE80?style=flat-square)](LICENSE)
 [![Release](https://img.shields.io/badge/Version-v1.5.5%20Portable-C084FC?style=flat-square)](https://github.com/ItAxolotl/ExportX/releases)
 
-Nowoczesna, ekstremalnie wydajna i wielowątkowa aplikacja desktopowa dla systemu Windows (napisana w **C# .NET 10 / WPF**) łącząca surowy styl **Neo-Brutalism** (jaskrawe akcenty, 2.5px solidne czarne obramowania, twarde cienie) z motywem **szkolnego zeszytu w kratkę** (papier milimetrowy/kratka, czerwony margines, znaczniki sticky-notes).
+A fast, multithreaded Windows desktop music and video downloader built with **C# .NET 10 / WPF**, featuring a distinctive **Neo-Brutalism** notebook theme.
 
 ---
 
-## ⚡ Główne Możliwości i Funkcje
+## Features
 
-### 1. 🎵 Pobieranie Muzyki i Wideo w Najwyższej Jakości:
-- **Formaty Audio**: `MP3`, `M4A (AAC)`, `FLAC (Lossless)`, `WAV (Lossless)`, `OPUS (High Quality)`.
-- **Regulacja Bitrate**: `128 kbps`, `192 kbps`, `256 kbps`, `320 kbps (Najwyższa jakość)`.
-- **Wideo MP4 Ultra HD**: Pobiera strumienie wideo najwyższej rozdzielczości (4K, 1440p, 1080p60) i bezstratnie scala je z najlepszym audio przez FFmpeg.
-- **Konfiguracja per utwór**: Każdy utwór w kolejce może mieć niezależnie wybrany format. Dwuklik myszą na wierszu przełącza format cyklicznie.
+### 1. High-Quality Audio & Video Processing
+- **Audio Formats**: `MP3`, `M4A (AAC)`, `FLAC (Lossless)`, `WAV (Lossless)`, `OPUS`.
+- **Bitrate Control**: `128 kbps`, `192 kbps`, `256 kbps`, `320 kbps`.
+- **Ultra HD Video**: Downloads highest-resolution video streams (4K, 1440p, 1080p60) and merges them losslessly via FFmpeg.
+- **Per-Item Configuration**: Switch format or target output for individual queue items with a double-click.
 
-### 2. 📋 Pełna Obsługa Playlist & Importu:
-- **Spotify**: Wklej link do playlisty, albumu lub pojedynczego utworu Spotify (np. `https://open.spotify.com/playlist/...`) – aplikacja pobiera całą playlistę z automatyczną paginacją (nawet 500+ utworów) bez potrzeby podawania klucza API!
-- **YouTube**: Pełna obsługa playlist, filmów, teledysków i YouTube Music.
-- **Pliki CSV / TXT / M3U**: Wczytywanie list utworów wyeksportowanych ze Spotify (Exportify / Spotlistr) oraz plików tekstowych.
-- **Wklejanie listy**: Dialog `📋 WKLEJ LISTĘ` pozwala wkleić dziesiątki utworów/linków naraz.
-- **Inteligentny filtr zapytań**: Automatycznie oczyszcza nazwy wykonawców z tagów beatmakerów (np. `@atutowy`, `Nolyrics Beats`), pobierając oryginalne utwory zamiast samych podkładów muzycznych.
+### 2. Spotify & Playlist Integration
+- **Spotify Library Browser**: View all user playlists and Liked Songs directly in the application.
+- **Batch Metadata API**: High-speed resolution of track titles, artists, albums, durations, and 640x640 album covers via batch endpoints.
+- **Live Search**: Instant in-memory search and filtering across hundreds of playlists as you type.
+- **Flexible Import**: Support for Spotify URLs, YouTube playlists, M3U files, and CSV/TXT exports.
+- **Smart Query Sanitizer**: Automatically strips beatmaker tags and production noise to ensure original track matching.
 
-### 3. 🔑 Błyskawiczne Logowanie Google / YouTube (Antigravity Style):
-- Opcja **`🔑 KONTO YOUTUBE`** otwiera Twoją domyślną przeglądarkę na oficjalnej stronie wyboru kont Google (`Google Account Chooser`).
-- Po wybraniu konta aplikacja w ułamku sekundy automatycznie przechwytuje i zapisuje sesję.
-- Ciasteczka sesji są zapisywane **wyłącznie lokalnie na Twoim dysku** (`youtube_cookies.txt`).
-- **Odblokowuje utwory z ograniczeniem wiekowym (+18)**, prywatne playlisty oraz zapobiega blokadom anty-botowym YouTube.
+### 3. Google / YouTube Session Auth
+- Built-in session capture via default browser to download age-restricted, private, or bot-blocked content safely.
+- Session cookies remain stored strictly locally on your machine.
 
-### 4. 🚀 Wielowątkowość (Do 16 wątków równolegle):
-- Możliwość jednoczesnego pobierania od 1 do **16 utworów naraz**.
-- Paski postępu dla każdego utworu w czasie rzeczywistym oraz główny pasek postępu całej kolejki.
+### 4. Multithreaded Engine
+- Parallel downloads supporting up to **16 concurrent workers**.
+- Individual progress tracking with real-time speed, percentage, and ETA metrics.
 
-### 5. 🏷️ Automatyczne Tagowanie ID3 & Okładki:
-- Automatyczne osadzanie oryginalnej okładki wysokiej rozdzielczości w plikach audio.
-- Uzupełnianie tagów ID3 (Wykonawca, Tytuł, Album).
+### 5. Automatic ID3 Tagging & Artwork
+- Automatically embeds high-resolution cover artwork and fills ID3 tags (Artist, Title, Album) into downloaded audio files.
 
-### 6. 💼 Wersja Portable (100% Przenośna):
-- Program potrafi działać w trybie **PORTABLE** – wszystkie dane, ciasteczka, pobrane pliki i silniki (`yt-dlp`, `ffmpeg`) znajdują się w jednym folderze.
-- Idealne do uruchamiania z pendrive'a lub dowolnego folderu bez instalacji i bez śladów w systemie!
+### 6. 100% Portable Mode
+- Completely self-contained package. Settings, cookies, downloads, and binaries (`yt-dlp`, `ffmpeg`) reside in a single portable directory with zero external runtime dependencies.
 
 ---
 
-## 🎨 Design & Stylistyka
+## Downloads
 
-- **Tło zeszytowe (`NotebookGridPatternBrush`)**: Struktura kartki w kratkę.
-- **Pionowy czerwony margines zeszytowy**: Element stylistyki vintage notebook.
-- **Neonowa paleta markerów zakreślających**:
-  - 🟨 **Neon Yellow** (`#FFE600`) – nagłówki, przyciski wyszukiwania i sesji
-  - 🟩 **Neon Lime** (`#4ADE80`) – przycisk `▶ START POBIERANIA`
-  - 🟦 **Neon Cyan** (`#00F0FF`) – akcje list i folderów
-  - 🟪 **Neon Purple** (`#C084FC`) – aktualizacja silnika pobierania
-  - 🟥 **Neon Pink** (`#FF5376`) – przycisk `⏹ ZATRZYMAJ` i usuwanie
-- **Fizyczny feedback (Tactile Click)**: Przyciski z 2.5px czarnym obramowaniem i twardym cieniem wciskają się fizycznie przy kliknięciu.
+Download the latest standalone package from [GitHub Releases](https://github.com/ItAxolotl/ExportX/releases):
 
----
-
-## 📦 Pobieranie Gotowych Wersji
-
-Gotową wersję możesz pobrać bezpośrednio z zakładki **[GitHub Releases](https://github.com/ItAxolotl/ExportX/releases)**:
-
-| Wersja | Plik do pobrania | Opis |
+| Package | Download Link | Description |
 |---|---|---|
-| 💼 **Paczka Gotowa (.ZIP)** | [⬇️ **Pobierz ExportX.zip**](https://github.com/ItAxolotl/ExportX/releases/download/v1.2/ExportX.zip) | W pełni niezależna paczka ze wszystkimi zależnościami (`yt-dlp`, `ffmpeg`, brak potrzeby instalacji .NET) |
-| 🪶 **Wszystkie wydania** | [📦 **Przejdź do Releases**](https://github.com/ItAxolotl/ExportX/releases) | Lista wszystkich wersji i plików instalacyjnych |
+| **ExportX Portable (.ZIP)** | [⬇️ Download ExportX-Portable.zip](https://github.com/ItAxolotl/ExportX/releases/latest) | Fully self-contained portable package with bundled `yt-dlp` and `FFmpeg` (No .NET installation required). |
+| **All Releases** | [📦 Releases Archive](https://github.com/ItAxolotl/ExportX/releases) | Full list of releases and changelogs. |
 
 ---
 
-## 🛠️ Budowanie ze Źródeł
+## Building from Source
 
-### Wymagania:
-- System **Windows 10 / 11** (64-bit)
+### Prerequisites
+- Windows 10 / 11 (64-bit)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
-### Kompilacja:
-Zalecamy używanie konsoli **PowerShell** (Wiersz poleceń CMD może mieć problemy z uruchamianiem skryptów):
+### Build Steps (PowerShell)
 
 ```powershell
-# 1. Główna kompilacja paczki Portable (.ZIP + .exe + zależności):
+# Build standalone portable release package:
 .\build_portable.ps1
 
-# 2. Pełna kompilacja wszystkich wariantów:
-.\build_exe.bat
-```
-
-> [!TIP]
-> **Użyj PowerShell zamiast CMD:** Skrypty automatyzujące proces pakowania i zależności wymagają środowiska PowerShell.
-
-### Uruchomienie w trybie deweloperskim:
-```powershell
+# Run in development mode:
 dotnet run
 ```
 
 ---
 
-## 📄 Licencja
+## License
 
-Projekt wydany na licencji **[MIT](LICENSE)**.
-Możesz go swobodnie używać, modyfikować i rozpowszechniać.
+This project is licensed under the [MIT License](LICENSE).
