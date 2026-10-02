@@ -37,9 +37,7 @@ public class SpotifyAuthService
         {
             lock (_lock)
             {
-                return !string.IsNullOrEmpty(_session.AccessToken) &&
-                       _session.UserProfile != null &&
-                       !string.IsNullOrEmpty(_session.UserProfile.Id);
+                return !string.IsNullOrEmpty(_session.AccessToken);
             }
         }
     }
@@ -56,6 +54,15 @@ public class SpotifyAuthService
                     var loaded = JsonSerializer.Deserialize<SpotifySessionData>(json);
                     if (loaded != null)
                     {
+                        if (loaded.UserProfile == null && !string.IsNullOrEmpty(loaded.AccessToken))
+                        {
+                            loaded.UserProfile = new SpotifyUserProfile
+                            {
+                                Id = "me",
+                                DisplayName = "Użytkownik Spotify",
+                                Product = "spotify"
+                            };
+                        }
                         _session = loaded;
                         return;
                     }

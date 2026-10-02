@@ -20,53 +20,119 @@ public class SpotifyUserService
         }
     }
 
+    public static string ResolveSpotifyImageUrl(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return raw;
+        }
+        if (raw.StartsWith("spotify:image:", StringComparison.OrdinalIgnoreCase))
+        {
+            var id = raw.Substring("spotify:image:".Length);
+            return $"https://i.scdn.co/image/{id}";
+        }
+        if (raw.StartsWith("spotify:mosaic:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw.Substring("spotify:mosaic:".Length).Split(':');
+            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0]))
+            {
+                return $"https://i.scdn.co/image/{parts[0]}";
+            }
+        }
+        return raw;
+    }
+
     public async Task<SpotifyUserProfile?> GetUserProfileAsync(string accessToken)
     {
         if (string.IsNullOrWhiteSpace(accessToken)) return null;
 
+        // 1. Try spclient user-profile-view (works reliably with Web Player tokens)
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "https://spclient.wg.spotify.com/user-profile-view/v3/profile/me");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+            req.Headers.TryAddWithoutValidation("app-platform", "WebPlayer");
+
+            var resp = await _http.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "" : "";
+                var uri = root.TryGetProperty("uri", out var uriProp) ? uriProp.GetString() ?? "" : "";
+                var rawImg = root.TryGetProperty("image_url", out var imgProp) ? imgProp.GetString() : null;
+                var followers = root.TryGetProperty("followers_count", out var follProp) ? follProp.GetInt32() : 0;
+
+                return new SpotifyUserProfile
+                {
+                    Id = uri.StartsWith("spotify:user:") ? uri.Substring("spotify:user:".Length) : (string.IsNullOrEmpty(uri) ? "me" : uri),
+                    DisplayName = !string.IsNullOrWhiteSpace(name) ? name : "Użytkownik Spotify",
+                    AvatarUrl = ResolveSpotifyImageUrl(rawImg),
+                    FollowersCount = followers,
+                    Product = "spotify"
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Debug($"Spclient profile fetch failed: {ex.Message}", "SPOTIFY");
+        }
+
+        // 2. Fallback to public Spotify Web API /v1/me
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.spotify.com/v1/me");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
 
             var resp = await _http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return null;
-
-            var json = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var profile = new SpotifyUserProfile
+            if (resp.IsSuccessStatusCode)
             {
-                Id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "",
-                DisplayName = root.TryGetProperty("display_name", out var nameProp) ? nameProp.GetString() ?? "" : "",
-                Email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "",
-                Product = root.TryGetProperty("product", out var prodProp) ? prodProp.GetString() ?? "free" : "free",
-                Country = root.TryGetProperty("country", out var countryProp) ? countryProp.GetString() ?? "" : ""
-            };
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
 
-            if (root.TryGetProperty("followers", out var follProp) &&
-                follProp.TryGetProperty("total", out var follTotal))
-            {
-                profile.FollowersCount = follTotal.GetInt32();
-            }
-
-            if (root.TryGetProperty("images", out var imgArr) && imgArr.ValueKind == JsonValueKind.Array && imgArr.GetArrayLength() > 0)
-            {
-                var firstImg = imgArr[0];
-                if (firstImg.TryGetProperty("url", out var urlProp))
+                var profile = new SpotifyUserProfile
                 {
-                    profile.AvatarUrl = urlProp.GetString() ?? "";
-                }
-            }
+                    Id = root.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "me" : "me",
+                    DisplayName = root.TryGetProperty("display_name", out var nameProp) ? nameProp.GetString() ?? "Użytkownik Spotify" : "Użytkownik Spotify",
+                    Email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() ?? "" : "",
+                    Product = root.TryGetProperty("product", out var prodProp) ? prodProp.GetString() ?? "free" : "free",
+                    Country = root.TryGetProperty("country", out var countryProp) ? countryProp.GetString() ?? "" : ""
+                };
 
-            return profile;
+                if (root.TryGetProperty("followers", out var follProp) &&
+                    follProp.TryGetProperty("total", out var follTotal))
+                {
+                    profile.FollowersCount = follTotal.GetInt32();
+                }
+
+                if (root.TryGetProperty("images", out var imgArr) && imgArr.ValueKind == JsonValueKind.Array && imgArr.GetArrayLength() > 0)
+                {
+                    var firstImg = imgArr[0];
+                    if (firstImg.TryGetProperty("url", out var urlProp))
+                    {
+                        profile.AvatarUrl = urlProp.GetString() ?? "";
+                    }
+                }
+
+                return profile;
+            }
         }
         catch (Exception ex)
         {
             LogService.Warn($"Błąd pobierania profilu Spotify: {ex.Message}", "SPOTIFY");
-            return null;
         }
+
+        // Fallback profile if token exists
+        return new SpotifyUserProfile
+        {
+            Id = "me",
+            DisplayName = "Użytkownik Spotify",
+            Product = "spotify"
+        };
     }
 
     public async Task<List<SpotifyPlaylistSummary>> GetUserPlaylistsAsync(string accessToken, IProgress<string>? progress = null)
@@ -74,6 +140,82 @@ public class SpotifyUserService
         var playlists = new List<SpotifyPlaylistSummary>();
         if (string.IsNullOrWhiteSpace(accessToken)) return playlists;
 
+        // 1. First try spclient user-profile-view playlists (supports all user playlists without 429 rate limit)
+        try
+        {
+            int offset = 0;
+            const int limit = 50;
+            bool hasMore = true;
+
+            while (hasMore)
+            {
+                var url = $"https://spclient.wg.spotify.com/user-profile-view/v3/profile/me/playlists?offset={offset}&limit={limit}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+                req.Headers.TryAddWithoutValidation("app-platform", "WebPlayer");
+
+                var resp = await _http.SendAsync(req);
+                if (!resp.IsSuccessStatusCode) break;
+
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("public_playlists", out var items) && items.ValueKind == JsonValueKind.Array)
+                {
+                    int batchCount = 0;
+                    foreach (var item in items.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.Object) continue;
+
+                        var uri = item.TryGetProperty("uri", out var uProp) ? uProp.GetString() ?? "" : "";
+                        var id = uri.StartsWith("spotify:playlist:") ? uri.Substring("spotify:playlist:".Length) : uri;
+                        var name = item.TryGetProperty("name", out var nameProp) ? nameProp.GetString() ?? "Bez nazwy" : "Bez nazwy";
+                        var rawImg = item.TryGetProperty("image_url", out var imgProp) ? imgProp.GetString() : null;
+                        var ownerName = item.TryGetProperty("owner_name", out var oNameProp) ? oNameProp.GetString() ?? "" : "";
+
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            playlists.Add(new SpotifyPlaylistSummary
+                            {
+                                Id = id,
+                                Name = name,
+                                OwnerName = ownerName,
+                                ImageUrl = ResolveSpotifyImageUrl(rawImg),
+                                IsPublic = true
+                            });
+                            batchCount++;
+                        }
+                    }
+
+                    progress?.Report($"Wczytano {playlists.Count} playlist użytkownika...");
+
+                    if (batchCount < limit)
+                    {
+                        hasMore = false;
+                    }
+                    else
+                    {
+                        offset += batchCount;
+                    }
+                }
+                else
+                {
+                    hasMore = false;
+                }
+            }
+
+            if (playlists.Count > 0)
+            {
+                return playlists;
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Debug($"Spclient playlists fetch error: {ex.Message}", "SPOTIFY");
+        }
+
+        // 2. Fallback to public Web API /v1/me/playlists
         string? nextUrl = "https://api.spotify.com/v1/me/playlists?limit=50";
 
         try
@@ -209,47 +351,79 @@ public class SpotifyUserService
     public async Task<List<SpotifyTrackItem>> GetPlaylistTracksAsync(string playlistId, string accessToken, IProgress<string>? progress = null)
     {
         var tracks = new List<SpotifyTrackItem>();
-        if (string.IsNullOrWhiteSpace(playlistId) || string.IsNullOrWhiteSpace(accessToken)) return tracks;
+        if (string.IsNullOrWhiteSpace(playlistId)) return tracks;
 
+        // 1. Try public/registered Web API endpoint
         string? nextUrl = $"https://api.spotify.com/v1/playlists/{playlistId.Trim()}/tracks?limit=100";
         int index = 1;
 
         try
         {
-            while (!string.IsNullOrEmpty(nextUrl))
+            if (!string.IsNullOrWhiteSpace(accessToken))
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, nextUrl);
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-
-                var resp = await _http.SendAsync(req);
-                if (!resp.IsSuccessStatusCode) break;
-
-                var json = await resp.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                while (!string.IsNullOrEmpty(nextUrl))
                 {
-                    foreach (var item in items.EnumerateArray())
+                    using var req = new HttpRequestMessage(HttpMethod.Get, nextUrl);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+
+                    var resp = await _http.SendAsync(req);
+                    if (!resp.IsSuccessStatusCode) break;
+
+                    var json = await resp.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
                     {
-                        if (item.TryGetProperty("track", out var trackObj) && trackObj.ValueKind == JsonValueKind.Object)
+                        foreach (var item in items.EnumerateArray())
                         {
-                            var track = ParseTrackObject(trackObj, index++);
-                            if (track != null) tracks.Add(track);
+                            if (item.TryGetProperty("track", out var trackObj) && trackObj.ValueKind == JsonValueKind.Object)
+                            {
+                                var track = ParseTrackObject(trackObj, index++);
+                                if (track != null) tracks.Add(track);
+                            }
                         }
                     }
+
+                    progress?.Report($"Wczytano {tracks.Count} utworów z playlisty...");
+
+                    nextUrl = root.TryGetProperty("next", out var nextProp) && nextProp.ValueKind == JsonValueKind.String
+                        ? nextProp.GetString()
+                        : null;
                 }
-
-                progress?.Report($"Wczytano {tracks.Count} utworów z playlisty...");
-
-                nextUrl = root.TryGetProperty("next", out var nextProp) && nextProp.ValueKind == JsonValueKind.String
-                    ? nextProp.GetString()
-                    : null;
             }
         }
-        catch (Exception ex)
+        catch { }
+
+        // 2. Fallback: Parse via PlaylistParserService (Embed scraper / Client credentials)
+        if (tracks.Count == 0)
         {
-            LogService.Warn($"Błąd pobierania utworów playlisty: {ex.Message}", "SPOTIFY");
+            try
+            {
+                var parser = new PlaylistParserService();
+                var parsedList = await parser.ParseInputAsync($"https://open.spotify.com/playlist/{playlistId.Trim()}", progress);
+                if (parsedList != null && parsedList.Count > 0)
+                {
+                    int trackIdx = 1;
+                    foreach (var p in parsedList)
+                    {
+                        tracks.Add(new SpotifyTrackItem
+                        {
+                            Id = $"track_{trackIdx}",
+                            TrackNumber = trackIdx++,
+                            Title = p.Title,
+                            Artist = p.Artist,
+                            Album = "",
+                            DurationString = "3:30",
+                            IsSelected = true
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Warn($"Błąd odczytu utworów playlisty przez parser: {ex.Message}", "SPOTIFY");
+            }
         }
 
         return tracks;

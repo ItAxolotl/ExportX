@@ -34,6 +34,16 @@ public partial class SpotifyBrowserWindow : Window
     private async void SpotifyBrowserWindow_Loaded(object sender, RoutedEventArgs e)
     {
         UpdateAccountUi();
+        var token = await SpotifyAuthService.GetValidAccessTokenAsync();
+        if (!string.IsNullOrEmpty(token) && (SpotifyAuthService.CurrentSession.UserProfile == null || SpotifyAuthService.CurrentSession.UserProfile.DisplayName == "Użytkownik Spotify"))
+        {
+            var profile = await _spotifyUserService.GetUserProfileAsync(token);
+            if (profile != null)
+            {
+                SpotifyAuthService.SaveSession(token, 3600, profile, SpotifyAuthService.CurrentSession.SpDcCookie);
+                UpdateAccountUi();
+            }
+        }
         await LoadUserPlaylistsAsync();
     }
 
