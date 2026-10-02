@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -344,16 +344,7 @@ public partial class SpotifyLoginWindow : Window
                     return src;
                 }
 
-                function isEditorial(title, subtitle) {
-                    const t = (title + ' ' + subtitle).toLowerCase();
-                    const editorialKeywords = [
-                        'new music', 'radar', 'odkryj', 'top 50', 'top tracks', 'viral',
-                        'editorial', 'hity', 'listy przebojów', 'polecane', 'popularne',
-                        'hip hop alert', 'up next', 'alternatywna polska', 'najpopularniejsze',
-                        'zrobiono dla', 'tylko dla ciebie', 'daily mix', 'radio'
-                    ];
-                    return editorialKeywords.some(k => t.includes(k));
-                }
+                function isEditorial(title, subtitle) { return false; }
 
                 function add(a, defaultOwner, forceInclude) {
                     try {

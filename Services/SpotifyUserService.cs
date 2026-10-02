@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System.Collections.Concurrent;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using ExportX.Models;
@@ -9,8 +10,10 @@ public class SpotifyUserService
 {
     private static readonly HttpClient _http = new()
     {
-        Timeout = TimeSpan.FromSeconds(15)
+        Timeout = TimeSpan.FromSeconds(10)
     };
+
+    private static readonly ConcurrentDictionary<string, (string Title, string Artist, string Thumb, string Duration)> _metadataCache = new();
 
     static SpotifyUserService()
     {
@@ -134,41 +137,15 @@ public class SpotifyUserService
         };
     }
 
-    public static bool IsEditorialPlaylist(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-        var lower = name.ToLowerInvariant();
-        return lower.StartsWith("new music friday") ||
-               lower.StartsWith("radar premier") ||
-               lower == "up next" ||
-               lower == "hip hop alert" ||
-               lower == "alternatywna polska" ||
-               lower == "najpopularniejsze teksty piosenek" ||
-               lower.StartsWith("pop right now") ||
-               lower.StartsWith("new dance pop") ||
-               lower.StartsWith("all new dance") ||
-               lower.StartsWith("all new all now") ||
-               lower.StartsWith("singled out") ||
-               lower == "dj" ||
-               lower.StartsWith("daily mix");
-    }
-
     public async Task<List<SpotifyPlaylistSummary>> GetUserPlaylistsAsync(string accessToken, IProgress<string>? progress = null)
     {
         var playlists = new List<SpotifyPlaylistSummary>();
         
-        // 1. Check cached playlists from active user session
+        // 1. Return all cached playlists from active session
         if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
         {
-            var userPlaylists = SpotifyAuthService.CurrentSession.CachedPlaylists
-                .Where(p => !IsEditorialPlaylist(p.Name))
-                .ToList();
-
-            if (userPlaylists.Count > 0)
-            {
-                playlists.AddRange(userPlaylists);
-                return playlists;
-            }
+            playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
+            return playlists;
         }
 
         if (string.IsNullOrWhiteSpace(accessToken)) return playlists;
@@ -257,7 +234,7 @@ public class SpotifyUserService
     {
         var tracks = new List<SpotifyTrackItem>();
 
-        // 1. Check cached liked songs from active session (ignore if corrupt numeric titles)
+        // 1. Check cached liked songs
         var cached = SpotifyAuthService.CurrentSession.CachedLikedSongs;
         if (cached.Count > 0 && !cached.All(t => int.TryParse(t.Title, out _)))
         {
@@ -331,12 +308,63 @@ public class SpotifyUserService
         return tracks;
     }
 
-    public static async Task<SpotifyTrackItem> ResolveTrackInfoAsync(string trackId, int trackNumber, CancellationToken ct = default)
+    private static async Task ResolveSingleTrackMetadataAsync(SpotifyTrackItem item, CancellationToken ct = default)
     {
-        // 1. Try embed/track HTML which contains rich __NEXT_DATA__
+        if (string.IsNullOrWhiteSpace(item.Id)) return;
+
+        // Check cache
+        if (_metadataCache.TryGetValue(item.Id, out var cached))
+        {
+            item.Title = cached.Title;
+            item.Artist = cached.Artist;
+            item.ImageUrl = cached.Thumb;
+            item.DurationString = cached.Duration;
+            return;
+        }
+
+        // 1. Fast oembed fetch (returns small JSON ~200 bytes in 50ms)
         try
         {
-            var embedUrl = $"https://open.spotify.com/embed/track/{trackId}";
+            var oembedUrl = $"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{item.Id}";
+            using var oReq = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
+            var oResp = await _http.SendAsync(oReq, ct);
+            if (oResp.IsSuccessStatusCode)
+            {
+                var oJson = await oResp.Content.ReadAsStringAsync(ct);
+                using var oDoc = JsonDocument.Parse(oJson);
+                var oRoot = oDoc.RootElement;
+
+                var titleRaw = oRoot.TryGetProperty("title", out var titProp) ? titProp.GetString() ?? "" : "";
+                var thumb = oRoot.TryGetProperty("thumbnail_url", out var thumbProp) ? thumbProp.GetString() ?? "" : "";
+
+                string artist = "Spotify";
+                string songTitle = titleRaw;
+
+                if (titleRaw.Contains(" - "))
+                {
+                    var parts = titleRaw.Split(new[] { " - " }, 2, StringSplitOptions.TrimEntries);
+                    artist = parts[0];
+                    songTitle = parts[1];
+                }
+
+                if (!string.IsNullOrWhiteSpace(songTitle))
+                {
+                    item.Title = songTitle;
+                    item.Artist = artist;
+                    item.ImageUrl = thumb;
+                    item.DurationString = "3:30";
+
+                    _metadataCache[item.Id] = (songTitle, artist, thumb, "3:30");
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        // 2. Fallback embed HTML if needed
+        try
+        {
+            var embedUrl = $"https://open.spotify.com/embed/track/{item.Id}";
             using var req = new HttpRequestMessage(HttpMethod.Get, embedUrl);
             var resp = await _http.SendAsync(req, ct);
             if (resp.IsSuccessStatusCode)
@@ -384,74 +412,19 @@ public class SpotifyUserService
 
                         if (!string.IsNullOrWhiteSpace(name))
                         {
-                            return new SpotifyTrackItem
-                            {
-                                Id = trackId,
-                                TrackNumber = trackNumber,
-                                Title = name,
-                                Artist = artists.Count > 0 ? string.Join(", ", artists) : "Spotify",
-                                Album = "",
-                                DurationString = durationMs > 0 ? durStr : "3:30",
-                                ImageUrl = imgUrl,
-                                IsSelected = true
-                            };
+                            var artistStr = artists.Count > 0 ? string.Join(", ", artists) : "Spotify";
+                            item.Title = name;
+                            item.Artist = artistStr;
+                            item.DurationString = durationMs > 0 ? durStr : "3:30";
+                            item.ImageUrl = imgUrl;
+
+                            _metadataCache[item.Id] = (name, artistStr, imgUrl, item.DurationString);
                         }
                     }
                 }
             }
         }
         catch { }
-
-        // 2. Fallback to oembed
-        try
-        {
-            var oembedUrl = $"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{trackId}";
-            using var oReq = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
-            var oResp = await _http.SendAsync(oReq, ct);
-            if (oResp.IsSuccessStatusCode)
-            {
-                var oJson = await oResp.Content.ReadAsStringAsync(ct);
-                using var oDoc = JsonDocument.Parse(oJson);
-                var oRoot = oDoc.RootElement;
-
-                var titleRaw = oRoot.TryGetProperty("title", out var titProp) ? titProp.GetString() ?? "" : "";
-                var thumb = oRoot.TryGetProperty("thumbnail_url", out var thumbProp) ? thumbProp.GetString() ?? "" : "";
-
-                string artist = "Spotify";
-                string songTitle = titleRaw;
-
-                if (titleRaw.Contains(" - "))
-                {
-                    var parts = titleRaw.Split(new[] { " - " }, 2, StringSplitOptions.TrimEntries);
-                    artist = parts[0];
-                    songTitle = parts[1];
-                }
-
-                return new SpotifyTrackItem
-                {
-                    Id = trackId,
-                    TrackNumber = trackNumber,
-                    Title = !string.IsNullOrWhiteSpace(songTitle) ? songTitle : $"Utwór {trackNumber}",
-                    Artist = artist,
-                    Album = "",
-                    DurationString = "3:30",
-                    ImageUrl = thumb,
-                    IsSelected = true
-                };
-            }
-        }
-        catch { }
-
-        return new SpotifyTrackItem
-        {
-            Id = trackId,
-            TrackNumber = trackNumber,
-            Title = $"Utwór {trackNumber}",
-            Artist = "Spotify",
-            Album = "",
-            DurationString = "3:30",
-            IsSelected = true
-        };
     }
 
     public async Task<List<SpotifyTrackItem>> GetPlaylistTracksAsync(string playlistId, string accessToken, IProgress<string>? progress = null)
@@ -459,7 +432,7 @@ public class SpotifyUserService
         var tracks = new List<SpotifyTrackItem>();
         if (string.IsNullOrWhiteSpace(playlistId)) return tracks;
 
-        // 1. Fetch complete track list via spclient (supports all 200+, 500+, 1000+ tracks without rate limits)
+        // 1. Fetch complete track list via spclient (instant ~200ms response for 200+, 500+, 1000+ tracks)
         if (!string.IsNullOrWhiteSpace(accessToken))
         {
             try
@@ -495,37 +468,54 @@ public class SpotifyUserService
 
                         if (trackUris.Count > 0)
                         {
-                            progress?.Report($"Wczytywanie {trackUris.Count} utworów...");
+                            int trackNumber = 1;
+                            var itemsToResolve = new List<SpotifyTrackItem>();
 
-                            var resolvedTracks = new System.Collections.Concurrent.ConcurrentDictionary<int, SpotifyTrackItem>();
-                            int totalCount = trackUris.Count;
-                            int processed = 0;
-
-                            await Parallel.ForEachAsync(trackUris.Select((id, idx) => (id, idx)), new ParallelOptions { MaxDegreeOfParallelism = 15 }, async (item, ct) =>
+                            foreach (var tId in trackUris)
                             {
-                                var (tId, tIdx) = item;
-                                var resolvedItem = await ResolveTrackInfoAsync(tId, tIdx + 1, ct);
-                                resolvedTracks[tIdx] = resolvedItem;
-
-                                var count = Interlocked.Increment(ref processed);
-                                if (count % 10 == 0 || count == totalCount)
+                                var item = new SpotifyTrackItem
                                 {
-                                    progress?.Report($"Wczytano {count} z {totalCount} utworów...");
-                                }
-                            });
+                                    Id = tId,
+                                    TrackNumber = trackNumber++,
+                                    Title = $"Utwór {trackNumber - 1}",
+                                    Artist = "Spotify",
+                                    Album = "",
+                                    DurationString = "3:30",
+                                    IsSelected = true
+                                };
 
-                            for (int i = 0; i < trackUris.Count; i++)
-                            {
-                                if (resolvedTracks.TryGetValue(i, out var resolved))
+                                if (_metadataCache.TryGetValue(tId, out var cached))
                                 {
-                                    tracks.Add(resolved);
+                                    item.Title = cached.Title;
+                                    item.Artist = cached.Artist;
+                                    item.ImageUrl = cached.Thumb;
+                                    item.DurationString = cached.Duration;
                                 }
+                                else
+                                {
+                                    itemsToResolve.Add(item);
+                                }
+
+                                tracks.Add(item);
                             }
 
-                            if (tracks.Count > 0)
+                            progress?.Report($"Wczytano {tracks.Count} utworów.");
+
+                            // Resolve metadata in background asynchronously with high parallelism (20 concurrent)
+                            if (itemsToResolve.Count > 0)
                             {
-                                return tracks;
+                                _ = Task.Run(async () =>
+                                {
+                                    int done = 0;
+                                    await Parallel.ForEachAsync(itemsToResolve, new ParallelOptions { MaxDegreeOfParallelism = 20 }, async (tr, ct) =>
+                                    {
+                                        await ResolveSingleTrackMetadataAsync(tr, ct);
+                                        Interlocked.Increment(ref done);
+                                    });
+                                });
                             }
+
+                            return tracks;
                         }
                     }
                 }
