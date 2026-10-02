@@ -100,6 +100,13 @@ public partial class MainWindow : Window
         DefaultBitrateComboBox.ItemsSource = bitrateItems;
         DefaultBitrateComboBox.SelectedValue = config.DefaultBitrate;
 
+        // Filename Templates
+        var templateItems = Enum.GetValues<FilenameTemplate>()
+            .Select(t => new ComboBoxDisplayItem<FilenameTemplate>(t, t.GetDisplayName()))
+            .ToList();
+        FilenameTemplateComboBox.ItemsSource = templateItems;
+        FilenameTemplateComboBox.SelectedValue = config.DefaultFilenameTemplate;
+
         // Threads (1 to 16)
         ThreadsComboBox.ItemsSource = Enumerable.Range(1, 16).ToList();
         ThreadsComboBox.SelectedItem = Math.Clamp(config.MaxParallelDownloads, 1, 16);
@@ -354,6 +361,7 @@ public partial class MainWindow : Window
 
         if (DefaultFormatComboBox.SelectedValue is DownloadFormat fmt) config.DefaultFormat = fmt;
         if (DefaultBitrateComboBox.SelectedValue is AudioBitrate br) config.DefaultBitrate = br;
+        if (FilenameTemplateComboBox.SelectedValue is FilenameTemplate tmpl) config.DefaultFilenameTemplate = tmpl;
         if (ThreadsComboBox.SelectedItem is int threads) config.MaxParallelDownloads = threads;
         config.ClipboardMonitor = ClipboardMonitorCheckBox.IsChecked == true;
         config.EnableAnti403 = Anti403CheckBox.IsChecked == true;
@@ -552,6 +560,12 @@ public partial class MainWindow : Window
         }
     }
 
+    private void FilenameTemplateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isInitializing) return;
+        SaveCurrentConfig();
+    }
+
     private void BatchChangeFormat_Click(object sender, RoutedEventArgs e)
     {
         var selectedItems = QueueDataGrid.SelectedItems.OfType<DownloadItem>().ToList();
@@ -631,6 +645,7 @@ public partial class MainWindow : Window
         bool organizeInFolders = OrganizeInFoldersCheckBox.IsChecked == true;
         bool normalizeVolume = NormalizeVolumeCheckBox.IsChecked == true;
         bool downloadLyrics = DownloadLyricsCheckBox.IsChecked == true;
+        var filenameTemplate = FilenameTemplateComboBox.SelectedValue is FilenameTemplate ft ? ft : FilenameTemplate.TitleWithId;
 
         StartButton.IsEnabled = false;
         StopButton.IsEnabled = true;
@@ -648,7 +663,8 @@ public partial class MainWindow : Window
             embedMeta,
             organizeInFolders,
             normalizeVolume,
-            downloadLyrics
+            downloadLyrics,
+            filenameTemplate
         );
     }
 
@@ -764,6 +780,26 @@ public partial class MainWindow : Window
 
         UpdateStats();
         GlobalStatusInfo.Text = $"Oznaczono {selected.Count} utworów do ponownego pobrania. Kliknij START.";
+    }
+
+    private void ContextRenameFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (QueueDataGrid.SelectedItem is DownloadItem item)
+        {
+            var dialog = new Views.RenameItemDialog(item)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                item.CustomFileName = dialog.ResultCustomFileName;
+                GlobalStatusInfo.Text = string.IsNullOrWhiteSpace(dialog.ResultCustomFileName)
+                    ? $"Przywrócono domyślną nazwę pliku dla #{item.Index}"
+                    : $"Ustawiono własną nazwę pliku: {dialog.ResultCustomFileName}";
+                LogService.Info($"Zmieniono nazwę pliku utworu #{item.Index} ({item.Title}) na: '{(string.IsNullOrWhiteSpace(dialog.ResultCustomFileName) ? "Domyślna" : dialog.ResultCustomFileName)}'", "RENAME");
+            }
+        }
     }
 
     private void ContextChangeFormat_Click(object sender, RoutedEventArgs e)

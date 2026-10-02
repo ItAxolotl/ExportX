@@ -267,6 +267,18 @@
                                   Width="70" />
                     </StackPanel>
 
+                    <!-- Filename Template Selector -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <TextBlock Text="SZABLON PLIKU:" FontWeight="Black" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <ComboBox x:Name="FilenameTemplateComboBox" 
+                                  Style="{StaticResource BrutalistComboBox}" 
+                                  Width="155" 
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectionChanged="FilenameTemplateComboBox_SelectionChanged"
+                                  ToolTip="Wybierz schemat nazewnictwa plików. Metadane ID3 w pliku (Tytuł i Autor) zawsze pozostaną pełne i poprawne." />
+                    </StackPanel>
+
                     <!-- Retry Failed button -->
                     <Button Grid.Column="4" 
                             Content="🔄 POBIERZ BŁĘDNE" 
@@ -464,6 +476,7 @@
                                      BorderThickness="2" 
                                      FontWeight="Bold">
                             <MenuItem Header="▶ Pobierz ponownie" Click="ContextRetry_Click" />
+                            <MenuItem Header="✏️ Zmień nazwę pliku docelowego..." Click="ContextRenameFile_Click" />
                             <Separator Background="{StaticResource BrushBlackBorder}" />
                             <MenuItem Header="✏ Zmień format na MP3 (Audio)" Click="ContextChangeFormat_Click" Tag="MP3" />
                             <MenuItem Header="✏ Zmień format na MP4 (Wideo HD)" Click="ContextChangeFormat_Click" Tag="MP4" />

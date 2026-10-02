@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
 
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host "  EXPORT.X - Tworzenie paczki PORTABLE (.ZIP)" -ForegroundColor Yellow

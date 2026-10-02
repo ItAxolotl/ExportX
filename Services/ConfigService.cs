@@ -18,6 +18,7 @@ public class AppConfig
     public bool OrganizeInFolders { get; set; } = false;
     public bool NormalizeVolume { get; set; } = false;
     public bool DownloadLyrics { get; set; } = false;
+    public FilenameTemplate DefaultFilenameTemplate { get; set; } = FilenameTemplate.TitleWithId;
     public string SpotifyClientId { get; set; } = string.Empty;
     public string SpotifyClientSecret { get; set; } = string.Empty;
 }

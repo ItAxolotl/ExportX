@@ -40,7 +40,8 @@ public class DownloaderEngine
         bool embedMetadata,
         bool organizeInFolders,
         bool normalizeVolume,
-        bool downloadLyrics)
+        bool downloadLyrics,
+        FilenameTemplate filenameTemplate = FilenameTemplate.TitleWithId)
     {
         if (_isRunning) return;
 
@@ -85,7 +86,7 @@ public class DownloaderEngine
                     return;
                 }
 
-                await ProcessItemWithFallbacksAsync(item, outputDirectory, enableAnti403, autoSkipExisting, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, ytDlpPath, ffmpegDir, token);
+                await ProcessItemWithFallbacksAsync(item, outputDirectory, enableAnti403, autoSkipExisting, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, filenameTemplate, ytDlpPath, ffmpegDir, token);
             }
             catch (OperationCanceledException)
             {
@@ -133,6 +134,7 @@ public class DownloaderEngine
         bool organizeInFolders,
         bool normalizeVolume,
         bool downloadLyrics,
+        FilenameTemplate filenameTemplate,
         string ytDlpPath,
         string? ffmpegDir,
         CancellationToken ct)
@@ -171,7 +173,7 @@ public class DownloaderEngine
             var clientName = string.IsNullOrEmpty(clientArg) ? "Domyślny (Najwyższa jakość)" : clientArg;
             LogService.Process($"#{item.Index} [{item.SelectedFormat}] Start pobierania: \"{item.Title}\" (Klient: {clientName}, próba {i + 1}/{clientStrategies.Length})...", "DOWNLOADER");
 
-            var (isOk, err) = await ExecuteYtDlpAsync(item, outputDirectory, clientArg, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, ytDlpPath, ffmpegDir, ct);
+            var (isOk, err) = await ExecuteYtDlpAsync(item, outputDirectory, clientArg, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, filenameTemplate, ytDlpPath, ffmpegDir, ct);
 
             if (isOk)
             {
@@ -210,6 +212,7 @@ public class DownloaderEngine
         bool organizeInFolders,
         bool normalizeVolume,
         bool downloadLyrics,
+        FilenameTemplate filenameTemplate,
         string ytDlpPath,
         string? ffmpegDir,
         CancellationToken ct)
@@ -224,9 +227,18 @@ public class DownloaderEngine
 
         var ext = item.SelectedFormat.GetExtension();
         var bitrate = item.SelectedBitrate.ToKbpsString();
-        var outTemplate = organizeInFolders
-            ? "%(artist,uploader)s/%(album,title)s/%(title)s [%(id)s].%(ext)s"
-            : "%(title)s [%(id)s].%(ext)s";
+        var folderPrefix = organizeInFolders ? "%(artist,uploader)s/%(album,title)s/" : "";
+        string outTemplate;
+
+        if (!string.IsNullOrWhiteSpace(item.CustomFileName))
+        {
+            var cleanCustomName = SanitizeFileName(item.CustomFileName);
+            outTemplate = $"{folderPrefix}{cleanCustomName}.%(ext)s";
+        }
+        else
+        {
+            outTemplate = $"{folderPrefix}{filenameTemplate.GetTemplatePattern()}.%(ext)s";
+        }
 
         var psi = new ProcessStartInfo
         {

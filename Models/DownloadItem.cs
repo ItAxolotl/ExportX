@@ -41,6 +41,7 @@ public class DownloadItem : INotifyPropertyChanged
     private string _statusMessage = "W kolejce";
     private string _errorMessage = string.Empty;
     private string _outputPath = string.Empty;
+    private string _customFileName = string.Empty;
     private bool _isSelected;
 
     public int Index
@@ -65,6 +66,12 @@ public class DownloadItem : INotifyPropertyChanged
     {
         get => _artist;
         set => SetField(ref _artist, value);
+    }
+
+    public string CustomFileName
+    {
+        get => _customFileName;
+        set => SetField(ref _customFileName, value);
     }
 
     public DownloadFormat SelectedFormat
