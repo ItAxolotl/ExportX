@@ -33,12 +33,17 @@ public partial class SpotifyBrowserWindow : Window
 
     private async void SpotifyBrowserWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        if (SpotifyAuthService.CurrentSession.UserProfile?.DisplayName == "Micael Widell")
+        {
+            SpotifyAuthService.ClearSession();
+        }
+
         UpdateAccountUi();
         var token = await SpotifyAuthService.GetValidAccessTokenAsync();
-        if (!string.IsNullOrEmpty(token) && (SpotifyAuthService.CurrentSession.UserProfile == null || SpotifyAuthService.CurrentSession.UserProfile.DisplayName == "Użytkownik Spotify"))
+        if (!string.IsNullOrEmpty(token))
         {
             var profile = await _spotifyUserService.GetUserProfileAsync(token);
-            if (profile != null)
+            if (profile != null && profile.DisplayName != "Micael Widell")
             {
                 SpotifyAuthService.SaveSession(token, 3600, profile, SpotifyAuthService.CurrentSession.SpDcCookie);
                 UpdateAccountUi();

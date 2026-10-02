@@ -296,6 +296,14 @@ public partial class SpotifyLoginWindow : Window
     private async Task ProcessTokenAsync(string accessToken, int expiresIn)
     {
         if (_isSuccess) return;
+
+        var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
+        if (profile != null && profile.DisplayName == "Micael Widell")
+        {
+            // Ignore demo/guest curator account
+            return;
+        }
+
         _isSuccess = true;
         _pollTimer.Stop();
 
@@ -305,7 +313,6 @@ public partial class SpotifyLoginWindow : Window
             StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
 
             string? spDc = await GetSpDcCookieAsync();
-            var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
             SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
 
             MessageBox.Show(
