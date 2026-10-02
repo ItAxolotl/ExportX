@@ -25,16 +25,25 @@ New-Item -ItemType Directory -Path "$dist\Downloads" -Force | Out-Null
 Write-Host "[1/4] Sprawdzanie srodowiska .NET SDK..." -ForegroundColor Green
 $dotnetVersion = & dotnet --version 2>$null
 if (-not $dotnetVersion) {
-    Write-Error "BŁĄD: .NET SDK nie jest zainstalowany na tym komputerze! Zainstaluj .NET 10 SDK: https://dotnet.microsoft.com/download/dotnet/10.0"
+    Write-Error "BLAD: .NET SDK nie jest zainstalowany na tym komputerze! Zainstaluj .NET 10 SDK: https://dotnet.microsoft.com/download/dotnet/10.0"
     exit 1
 }
 Write-Host "  -> Wykryto .NET SDK: $dotnetVersion" -ForegroundColor Gray
 
 Write-Host "[2/4] Kompilacja ExportX.exe (Standalone Self-Contained)..." -ForegroundColor Green
-& dotnet publish ExportX.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $dist
+$standaloneDir = ".\dist\ExportX-Standalone"
+& dotnet publish ExportX.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $standaloneDir
+
+if (-not (Test-Path "$standaloneDir\ExportX.exe")) {
+    Write-Error "BLAD: Kompilacja nie utworzyla pliku ExportX.exe w $standaloneDir!"
+    exit 1
+}
+
+Copy-Item "$standaloneDir\ExportX.exe" "$dist\ExportX.exe" -Force
+Write-Host "  -> Skopiowano ExportX.exe ($([math]::Round((Get-Item "$dist\ExportX.exe").Length / 1MB, 2)) MB)" -ForegroundColor Gray
 
 if (-not (Test-Path "$dist\ExportX.exe")) {
-    Write-Error "BŁĄD: Kompilacja nie utworzyla pliku ExportX.exe! Sprawdz bledy kompilatora powyzej."
+    Write-Error "BLAD: Plik ExportX.exe nie znajduje sie w folderze $dist!"
     exit 1
 }
 
@@ -58,20 +67,8 @@ if ($ffExe) {
     }
 }
 
-$readme = @"
-===========================================================
-  EXPORT.X - PORTABLE MUSIC & VIDEO DOWNLOADER v1.2
-===========================================================
-
-Ta wersja aplikacji dziala w pelni przenosnie (PORTABLE MODE):
-- Wszystkie ustawienia i ciasteczka sesji sa zapisywane w podfolderze 'data\'
-- Pobrane utwory trafiaja domyslnie do podfolderu 'Downloads\'
-- Narzedzia yt-dlp i FFmpeg znajduja sie w podfolderze 'bin\'
-- Program nie wymaga instalacji .NET ani konfiguracji w systemie.
-
-Aby uruchomic program, kliknij dwukrotnie w: ExportX.exe
-"@
-Set-Content -Path "$dist\README_PORTABLE.txt" -Value $readme -Encoding UTF8
+$readmeText = "===========================================================`r`n  EXPORT.X - PORTABLE MUSIC AND VIDEO DOWNLOADER v1.4`r`n===========================================================`r`n`r`nTa wersja aplikacji dziala w pelni przenosnie (PORTABLE MODE):`r`n- Wszystkie ustawienia i ciasteczka sesji sa zapisywane w podfolderze data`r`n- Pobrane utwory trafiaja domyslnie do podfolderu Downloads`r`n- Narzedzia yt-dlp i FFmpeg znajduja sie w podfolderze bin`r`n- Program nie wymaga instalacji .NET ani konfiguracji w systemie.`r`n`r`nAby uruchomic program, kliknij dwukrotnie w: ExportX.exe`r`n"
+Set-Content -Path "$dist\README_PORTABLE.txt" -Value $readmeText -Encoding UTF8
 
 Write-Host "[3/4] Pakowanie do archiwum ZIP ($zip)..." -ForegroundColor Green
 $absDist = (Resolve-Path $dist).Path
