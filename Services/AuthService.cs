@@ -132,15 +132,24 @@ public static class AuthService
             psi.ArgumentList.Add("--cookies");
             psi.ArgumentList.Add(targetCookiesPath);
             psi.ArgumentList.Add("--skip-download");
+            psi.ArgumentList.Add("--no-warnings");
+            psi.ArgumentList.Add("--no-update");
+            psi.ArgumentList.Add("--socket-timeout");
+            psi.ArgumentList.Add("8");
             psi.ArgumentList.Add("https://www.youtube.com");
 
-            using (var process = Process.Start(psi))
+            try
             {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+                using var process = Process.Start(psi);
                 if (process != null)
                 {
-                    await process.WaitForExitAsync();
+                    var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+                    var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+                    await Task.WhenAll(process.WaitForExitAsync(cts.Token), stdoutTask, stderrTask);
                 }
             }
+            catch { }
 
             // Immediately restart the browser if it was running before
             if (wasRunning && !string.IsNullOrEmpty(browserExePath) && File.Exists(browserExePath))
