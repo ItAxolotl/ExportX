@@ -90,20 +90,33 @@ public class ConfigService
 
     public static bool HasValidAuthContent(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return false;
-        return text.Contains("\tLOGIN_INFO\t") || 
-               text.Contains("\t__Secure-1PSID\t") || 
-               text.Contains("\t__Secure-3PSID\t") || 
-               text.Contains("\t__Secure-1PAPISID\t") || 
-               text.Contains("\t__Secure-3PAPISID\t") || 
-               text.Contains("\tSAPISID\t") || 
-               text.Contains("\tSID\t") || 
-               text.Contains("\tSSID\t") ||
-               text.Contains("\tHSID\t") ||
-               text.Contains("\tAPISID\t") ||
-               text.Contains("LOGIN_INFO") || 
-               text.Contains("__Secure-1PSID") || 
-               text.Contains("__Secure-3PSID");
+        if (string.IsNullOrWhiteSpace(text) || text.Length < 100) return false;
+
+        var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        bool hasLoginInfo = false;
+        bool hasGoogleSession = false;
+
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("#")) continue;
+            var parts = line.Split('\t');
+            if (parts.Length >= 7)
+            {
+                var name = parts[5].Trim();
+                var val = parts[6].Trim();
+
+                if (name == "LOGIN_INFO" && val.Length > 15)
+                {
+                    hasLoginInfo = true;
+                }
+                if ((name == "__Secure-1PSID" || name == "__Secure-3PSID" || name == "SID" || name == "SAPISID") && val.Length > 20)
+                {
+                    hasGoogleSession = true;
+                }
+            }
+        }
+
+        return hasLoginInfo || hasGoogleSession;
     }
 
     public static bool HasValidCookies()

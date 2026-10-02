@@ -101,20 +101,20 @@
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="SessionInfoText" 
-                               Text="Wskazówka: Kliknij swoje konto powyżej. Sesja zostanie automatycznie zapisana." 
+                               Text="Wskazówka: Zaloguj się powyżej do konta. Po zalogowaniu okno zamknie się automatycznie." 
                                FontWeight="Bold" 
                                FontSize="11" 
                                Foreground="{StaticResource BrushBlackBorder}" />
                 </StackPanel>
 
                 <Button Grid.Column="1" 
-                        Content="🌐 OTWÓRZ W PRZEGLĄDARCE" 
-                        Style="{StaticResource BrutalistButton}" 
-                        Background="{StaticResource BrushPaperWhite}"
+                        Content="📁 IMPORTUJ COOKIES.TXT" 
+                        Style="{StaticResource CyanButton}" 
+                        FontWeight="Black"
                         FontSize="11"
                         Padding="10,6"
                         Margin="0,0,6,0"
-                        Click="OpenInExternalBrowser_Click" />
+                        Click="ImportCookiesFile_Click" />
 
                 <Button Grid.Column="2" 
                         x:Name="DeleteSessionBtn"
@@ -137,7 +137,7 @@
 
                 <Button Grid.Column="4" 
                         x:Name="ManualSaveBtn"
-                        Content="💾 ZAPISZ RĘCZNIE" 
+                        Content="💾 ZAPISZ SESJĘ" 
                         Style="{StaticResource GreenStartButton}" 
                         FontSize="11"
                         FontWeight="Black"
