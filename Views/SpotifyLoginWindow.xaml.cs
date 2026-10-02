@@ -61,7 +61,7 @@ public partial class SpotifyLoginWindow : Window
             LoginWebView.CoreWebView2.WebResourceResponseReceived += CoreWebView2_WebResourceResponseReceived;
 
             LoadingOverlay.Visibility = Visibility.Collapsed;
-            LoginWebView.CoreWebView2.Navigate("https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F");
+            LoginWebView.CoreWebView2.Navigate("https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2Fcollection%2Fplaylists");
             _pollTimer.Start();
         }
         catch (Exception ex)
@@ -293,6 +293,24 @@ public partial class SpotifyLoginWindow : Window
         catch { }
     }
 
+    private void SafeCloseWithSuccess()
+    {
+        try
+        {
+            if (System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+            {
+                DialogResult = true;
+            }
+        }
+        catch { }
+
+        try
+        {
+            Close();
+        }
+        catch { }
+    }
+
     private async Task<List<SpotifyPlaylistSummary>> ExtractPlaylistsFromWebViewAsync()
     {
         var list = new List<SpotifyPlaylistSummary>();
@@ -308,7 +326,18 @@ public partial class SpotifyLoginWindow : Window
                     return t.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
                 }
 
-                function add(a, tag) {
+                function isEditorial(title, subtitle) {
+                    const t = (title + ' ' + subtitle).toLowerCase();
+                    const editorialKeywords = [
+                        'new music', 'radar', 'odkryj', 'top 50', 'top tracks', 'viral',
+                        'editorial', 'hity', 'listy przebojów', 'polecane', 'popularne',
+                        'hip hop alert', 'up next', 'alternatywna polska', 'najpopularniejsze',
+                        'zrobiono dla', 'tylko dla ciebie', 'daily mix', 'radio'
+                    ];
+                    return editorialKeywords.some(k => t.includes(k));
+                }
+
+                function add(a, defaultOwner, forceInclude) {
                     try {
                         if (!a) return;
                         const href = a.getAttribute('href') || a.href || '';
@@ -323,7 +352,7 @@ public partial class SpotifyLoginWindow : Window
                             title = cleanText(aria);
                         }
                         if (!title || title.toLowerCase() === 'playlista' || title.toLowerCase() === 'playlist') {
-                            const textEl = a.querySelector('[data-encore-id=""text""], p, span, h3, h2');
+                            const textEl = a.querySelector('[data-encore-id=""text""], p, span, h3, h2, div');
                             if (textEl && textEl.textContent) title = cleanText(textEl.textContent);
                         }
                         if (!title || title.toLowerCase() === 'playlista' || title.toLowerCase() === 'playlist') {
@@ -342,6 +371,15 @@ public partial class SpotifyLoginWindow : Window
                             return;
                         }
 
+                        // Determine subtitle / owner
+                        let sub = '';
+                        const subEl = a.closest('div[role=""listitem""], div[role=""row""], div[data-testid=""rootlist-item""]')?.querySelector('span[data-encore-id=""text""]:not(:first-child), p:not(:first-child)');
+                        if (subEl && subEl.textContent) sub = cleanText(subEl.textContent);
+
+                        if (!forceInclude && isEditorial(title, sub)) {
+                            return;
+                        }
+
                         let imgUrl = '';
                         const imgEl = a.querySelector('img') || a.closest('div')?.querySelector('img') || a.parentElement?.querySelector('img');
                         if (imgEl && imgEl.src && !imgEl.src.startsWith('data:')) {
@@ -353,24 +391,26 @@ public partial class SpotifyLoginWindow : Window
                             Id: id,
                             Name: title,
                             ImageUrl: imgUrl,
-                            OwnerName: tag || 'Moja playlista',
+                            OwnerName: defaultOwner || (sub ? sub : 'Moja playlista'),
                             IsPublic: true
                         });
                     } catch(e) {}
                 }
 
-                // 1. Sidebar library
-                document.querySelectorAll('nav a[href*=""/playlist/""], aside a[href*=""/playlist/""], div[data-testid=""rootlist-container""] a[href*=""/playlist/""], div[aria-label*=""Biblioteka"" i] a[href*=""/playlist/""], div[aria-label*=""Library"" i] a[href*=""/playlist/""]').forEach(a => add(a, 'Biblioteka'));
+                // 1. Sidebar Library
+                const sidebar = document.querySelector('nav, aside, div[data-testid=""rootlist-container""], div[aria-label*=""Biblioteka"" i], div[aria-label*=""Library"" i]');
+                if (sidebar) {
+                    sidebar.querySelectorAll('a[href*=""/playlist/""]').forEach(a => add(a, 'Biblioteka', true));
+                }
 
-                // 2. Home shortcuts grid
-                document.querySelectorAll('div[data-testid=""grid-container""] a[href*=""/playlist/""], div[data-testid=""shortcut-item""] a[href*=""/playlist/""], div[role=""grid""] a[href*=""/playlist/""]').forEach(a => add(a, 'Moja playlista'));
+                // 2. Collection main view
+                document.querySelectorAll('main div[data-testid=""grid-container""] a[href*=""/playlist/""], main div[role=""grid""] a[href*=""/playlist/""]').forEach(a => {
+                    add(a, 'Moja playlista', true);
+                });
 
-                // 3. All other playlists on page
-                document.querySelectorAll('a[href*=""/playlist/""]').forEach(a => {
-                    const section = a.closest('section');
-                    const heading = section?.querySelector('h2, [data-encore-id=""text""]')?.textContent || '';
-                    if (heading.match(/New Music|Radar premier|Listy przeboj\xF3w|Odkryj|Popularne|Top|Polecane|Editorial/i)) return;
-                    add(a, 'Playlista');
+                // 3. Shortcuts on Home
+                document.querySelectorAll('div[data-testid=""shortcut-item""] a[href*=""/playlist/""]').forEach(a => {
+                    add(a, 'Skrót', false);
                 });
 
                 return JSON.stringify(list);
@@ -394,6 +434,75 @@ public partial class SpotifyLoginWindow : Window
         }
 
         return list;
+    }
+
+    private async Task<List<SpotifyTrackItem>> ExtractLikedSongsFromWebViewAsync()
+    {
+        var tracks = new List<SpotifyTrackItem>();
+        if (LoginWebView.CoreWebView2 == null) return tracks;
+
+        const string script = @"(() => {
+            try {
+                const list = [];
+                const rows = document.querySelectorAll('div[data-testid=""tracklist-row""], div[role=""row""]');
+                let idx = 1;
+                rows.forEach(row => {
+                    try {
+                        const titleEl = row.querySelector('div[dir=""auto""], [data-encore-id=""text""], a[data-testid=""internal-track-link""]');
+                        const artistEl = row.querySelector('span[data-encore-id=""text""] a, a[href*=""/artist/""]');
+                        if (titleEl && artistEl) {
+                            const title = titleEl.textContent.trim();
+                            const artist = artistEl.textContent.trim();
+                            if (title && artist) {
+                                let img = '';
+                                const imgEl = row.querySelector('img');
+                                if (imgEl && imgEl.src) img = imgEl.src;
+
+                                list.push({
+                                    Id: 'liked_' + idx,
+                                    TrackNumber: idx,
+                                    Title: title,
+                                    Artist: artist,
+                                    Album: '',
+                                    DurationString: '3:30',
+                                    ImageUrl: img,
+                                    IsSelected: true
+                                });
+                                idx++;
+                            }
+                        }
+                    } catch(e) {}
+                });
+                return JSON.stringify(list);
+            } catch(e) { return '[]'; }
+        })()";
+
+        try
+        {
+            var json = await LoginWebView.CoreWebView2.ExecuteScriptAsync(script);
+            if (!string.IsNullOrWhiteSpace(json) && json != "null" && json != "\"[]\"")
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.String)
+                {
+                    var inner = root.GetString();
+                    if (!string.IsNullOrWhiteSpace(inner))
+                    {
+                        var items = JsonSerializer.Deserialize<List<SpotifyTrackItem>>(inner);
+                        if (items != null) tracks.AddRange(items);
+                    }
+                }
+                else if (root.ValueKind == JsonValueKind.Array)
+                {
+                    var items = JsonSerializer.Deserialize<List<SpotifyTrackItem>>(json);
+                    if (items != null) tracks.AddRange(items);
+                }
+            }
+        }
+        catch { }
+
+        return tracks;
     }
 
     private static List<SpotifyPlaylistSummary> ParseScriptResultPlaylists(string? rawJson)
@@ -485,12 +594,13 @@ public partial class SpotifyLoginWindow : Window
 
             string? spDc = await GetSpDcCookieAsync();
             List<SpotifyPlaylistSummary> extractedPlaylists = new();
+            List<SpotifyTrackItem> extractedLikedSongs = new();
 
-            // Navigate to open.spotify.com if not already there, to ensure DOM with playlists is loaded
+            // Navigate to open.spotify.com/collection/playlists if not already there, to ensure user's actual library is rendered
             var currentUrl = LoginWebView.Source?.ToString() ?? "";
-            if (!currentUrl.Contains("open.spotify.com"))
+            if (!currentUrl.Contains("collection/playlists") && !currentUrl.Contains("open.spotify.com"))
             {
-                LoginWebView.CoreWebView2?.Navigate("https://open.spotify.com/");
+                LoginWebView.CoreWebView2?.Navigate("https://open.spotify.com/collection/playlists");
             }
 
             // Retry playlist extraction up to 4 times to let React DOM render
@@ -500,6 +610,9 @@ public partial class SpotifyLoginWindow : Window
                 extractedPlaylists = await ExtractPlaylistsFromWebViewAsync();
                 if (extractedPlaylists.Count > 0) break;
             }
+
+            // Also extract liked tracks if on tracks view
+            extractedLikedSongs = await ExtractLikedSongsFromWebViewAsync();
 
             // Also check profile avatar / name from DOM if default
             if (profile == null || profile.DisplayName == "Użytkownik Spotify")
@@ -551,7 +664,7 @@ public partial class SpotifyLoginWindow : Window
                 catch { }
             }
 
-            SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc, extractedPlaylists);
+            SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc, extractedPlaylists, extractedLikedSongs);
 
             MessageBox.Show(
                 $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nZnaleziono {extractedPlaylists.Count} playlist z Twojego konta.",
@@ -559,8 +672,7 @@ public partial class SpotifyLoginWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
 
-            DialogResult = true;
-            Close();
+            SafeCloseWithSuccess();
         });
     }
 
@@ -582,8 +694,8 @@ public partial class SpotifyLoginWindow : Window
         var currentUrl = LoginWebView.Source?.ToString() ?? "";
         if (!currentUrl.Contains("open.spotify.com"))
         {
-            LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/");
-            StatusNote.Text = "Przekierowywanie do odtwarzacza Spotify...";
+            LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/collection/playlists");
+            StatusNote.Text = "Przekierowywanie do Twojej biblioteki Spotify...";
             await Task.Delay(1500);
         }
 
@@ -607,20 +719,26 @@ public partial class SpotifyLoginWindow : Window
 
         if (!_isSuccess && !string.IsNullOrWhiteSpace(SpotifyAuthService.CurrentSession.AccessToken))
         {
-            // Already have valid token, just extract playlists
+            // Already have valid token, extract playlists & liked songs
             var playlists = await ExtractPlaylistsFromWebViewAsync();
-            if (playlists.Count > 0)
-            {
-                SpotifyAuthService.SaveSession(SpotifyAuthService.CurrentSession.AccessToken, 3600, SpotifyAuthService.CurrentSession.UserProfile, spDc, playlists);
-                MessageBox.Show(
-                    $"Zsynchronizowano sesję Spotify!\nZnaleziono {playlists.Count} playlist.",
-                    "Logowanie Spotify udane",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                DialogResult = true;
-                Close();
-                return;
-            }
+            var likedTracks = await ExtractLikedSongsFromWebViewAsync();
+
+            SpotifyAuthService.SaveSession(
+                SpotifyAuthService.CurrentSession.AccessToken, 
+                3600, 
+                SpotifyAuthService.CurrentSession.UserProfile, 
+                spDc, 
+                playlists, 
+                likedTracks);
+
+            MessageBox.Show(
+                $"Zsynchronizowano sesję Spotify!\nZnaleziono {playlists.Count} playlist.",
+                "Logowanie Spotify udane",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            SafeCloseWithSuccess();
+            return;
         }
     }
 
@@ -718,8 +836,7 @@ public partial class SpotifyLoginWindow : Window
                             StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
                             StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                             MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {profile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
-                            DialogResult = true;
-                            Close();
+                            SafeCloseWithSuccess();
                             return;
                         }
                     }
@@ -762,8 +879,7 @@ public partial class SpotifyLoginWindow : Window
                     StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
                     StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                     MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {directProfile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
-                    DialogResult = true;
-                    Close();
+                    SafeCloseWithSuccess();
                     return;
                 }
             }
@@ -807,8 +923,7 @@ public partial class SpotifyLoginWindow : Window
                     StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
                     StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                     MessageBox.Show($"Pomyślnie zaimportowano ciasteczka Spotify!\nZalogowano jako: {profile?.DisplayName}", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
-                    DialogResult = true;
-                    Close();
+                    SafeCloseWithSuccess();
                 }
                 else
                 {
@@ -851,8 +966,7 @@ public partial class SpotifyLoginWindow : Window
                 StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
                 StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
                 MessageBox.Show($"Ciasteczko sp_dc zweryfikowane pomyślnie!\nZalogowano jako: {profile?.DisplayName}", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
-                DialogResult = true;
-                Close();
+                SafeCloseWithSuccess();
             }
             else
             {
@@ -865,7 +979,7 @@ public partial class SpotifyLoginWindow : Window
     {
         try
         {
-            var url = "https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F";
+            var url = "https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2Fcollection%2Fplaylists";
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             LogService.Info("Otwarto oficjalną stronę logowania Spotify w przeglądarce.", "SPOTIFY");
         }
@@ -883,7 +997,14 @@ public partial class SpotifyLoginWindow : Window
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
-        Close();
+        try
+        {
+            if (System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+            {
+                DialogResult = false;
+            }
+        }
+        catch { }
+        try { Close(); } catch { }
     }
 }

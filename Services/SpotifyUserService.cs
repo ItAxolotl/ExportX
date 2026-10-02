@@ -231,6 +231,14 @@ public class SpotifyUserService
     public async Task<List<SpotifyTrackItem>> GetLikedSongsAsync(string accessToken, IProgress<string>? progress = null)
     {
         var tracks = new List<SpotifyTrackItem>();
+
+        // 1. Check cached liked songs from active session
+        if (SpotifyAuthService.CurrentSession.CachedLikedSongs.Count > 0)
+        {
+            tracks.AddRange(SpotifyAuthService.CurrentSession.CachedLikedSongs);
+            return tracks;
+        }
+
         if (string.IsNullOrWhiteSpace(accessToken)) return tracks;
 
         string? nextUrl = "https://api.spotify.com/v1/me/tracks?limit=50";
