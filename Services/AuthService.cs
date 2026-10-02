@@ -94,21 +94,12 @@ public static class AuthService
                 if (browser != "firefox")
                 {
                     progressCallback?.Invoke($"Zwalnianie bazy sesji z {browser.ToUpperInvariant()}...");
-                    try
+                    foreach (var p in runningProcs)
                     {
-                        var killPsi = new ProcessStartInfo
-                        {
-                            FileName = "taskkill.exe",
-                            Arguments = $"/F /T /IM {procName}.exe",
-                            CreateNoWindow = true,
-                            UseShellExecute = false
-                        };
-                        using var kp = Process.Start(killPsi);
-                        if (kp != null) await kp.WaitForExitAsync();
+                        try { p.Kill(entireProcessTree: true); } catch { }
                     }
-                    catch { }
 
-                    await Task.Delay(400);
+                    await Task.Delay(350);
                 }
             }
             else
@@ -116,7 +107,7 @@ public static class AuthService
                 browserExePath = FindBrowserExePath(browser);
             }
 
-            // Execute yt-dlp extraction
+            // Execute yt-dlp extraction with instant fast exit
             progressCallback?.Invoke($"Pobieranie sesji z {browser.ToUpperInvariant()}...");
             var psi = new ProcessStartInfo
             {
@@ -132,15 +123,17 @@ public static class AuthService
             psi.ArgumentList.Add("--cookies");
             psi.ArgumentList.Add(targetCookiesPath);
             psi.ArgumentList.Add("--skip-download");
+            psi.ArgumentList.Add("--playlist-items");
+            psi.ArgumentList.Add("0");
             psi.ArgumentList.Add("--no-warnings");
             psi.ArgumentList.Add("--no-update");
             psi.ArgumentList.Add("--socket-timeout");
-            psi.ArgumentList.Add("8");
+            psi.ArgumentList.Add("6");
             psi.ArgumentList.Add("https://www.youtube.com");
 
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
                 using var process = Process.Start(psi);
                 if (process != null)
                 {
