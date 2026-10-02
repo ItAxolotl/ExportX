@@ -87,14 +87,12 @@ public static class AuthService
             }
         }
 
-        // Native Google OAuth Account Chooser URL
-        string clientId = "1071006060591-tmhssin2h21lcre235vtolojh4q403ep.apps.googleusercontent.com";
-        string redirectUri = $"http://127.0.0.1:{port}/callback";
-        string googleOAuthUrl = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={clientId}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope=openid%20profile%20email%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.readonly&access_type=offline&prompt=select_account";
+        // Official Google Account Chooser for YouTube (works with existing browser accounts without 401 invalid_client)
+        string googleAccountChooserUrl = "https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F";
 
         try
         {
-            Process.Start(new ProcessStartInfo(googleOAuthUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(googleAccountChooserUrl) { UseShellExecute = true });
             LogService.Info("Otwarto oficjalną stronę wyboru konta Google w domyślnej przeglądarce.", "AUTH");
         }
         catch (Exception ex)
