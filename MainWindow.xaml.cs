@@ -164,30 +164,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Open Google Account Chooser directly in default browser
-        AuthService.OpenGoogleAccountChooser();
-        GlobalStatusInfo.Text = "Otwarto wybór konta Google w przeglądarce. Wybierz konto i zatwierdź...";
+        var loginWin = new Views.YouTubeLoginWindow { Owner = this };
+        loginWin.ShowDialog();
+        UpdateYouTubeLoginButtonState();
 
-        var confirmRes = MessageBox.Show(
-            "W Twojej domyślnej przeglądarce została otwarta oficjalna strona wyboru konta Google / YouTube.\n\nPo wybraniu swojego konta i przejściu do serwisu YouTube, kliknij [TAK], aby połączyć konto z programem ExportX.",
-            "Połącz konto YouTube",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-
-        if (confirmRes == MessageBoxResult.Yes)
+        if (ConfigService.HasValidCookies())
         {
-            AuthService.SaveActiveAuthSession();
-            UpdateYouTubeLoginButtonState();
-            GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie z kontem Google / YouTube!";
-            MessageBox.Show(
-                "Sukces!\n\nTwoje konto Google zostało pomyślnie połączone z aplikacją ExportX.\n\nFilmy z ograniczeniem wiekowym (+18) i playlisty prywatne są teraz w pełni odblokowane.",
-                "Zalogowano pomyślnie",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-        }
-        else
-        {
-            GlobalStatusInfo.Text = "Anulowano łączenie konta.";
+            GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie! Filmy +18 są odblokowane.";
         }
     }
 
