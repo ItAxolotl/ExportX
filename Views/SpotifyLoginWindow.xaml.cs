@@ -17,10 +17,12 @@ public partial class SpotifyLoginWindow : Window
     private readonly SpotifyUserService _spotifyUserService = new();
     private bool _isSuccess = false;
     private bool _isChecking = false;
+    private readonly bool _autoExtract;
 
-    public SpotifyLoginWindow()
+    public SpotifyLoginWindow(bool autoExtract = false)
     {
         InitializeComponent();
+        _autoExtract = autoExtract;
 
         _pollTimer.Interval = TimeSpan.FromSeconds(2.0);
         _pollTimer.Tick += PollTimer_Tick;
@@ -32,6 +34,10 @@ public partial class SpotifyLoginWindow : Window
     private async void SpotifyLoginWindow_Loaded(object sender, RoutedEventArgs e)
     {
         await InitializeWebViewAsync();
+        if (_autoExtract)
+        {
+            ExtractFromExternalBrowser_Click(this, new RoutedEventArgs());
+        }
     }
 
     private void SpotifyLoginWindow_Closed(object? sender, EventArgs e)
