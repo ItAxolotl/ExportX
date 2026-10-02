@@ -144,7 +144,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void YouTubeLogin_Click(object sender, RoutedEventArgs e)
+    private void YouTubeLogin_Click(object sender, RoutedEventArgs e)
     {
         if (ConfigService.HasValidCookies())
         {
@@ -164,29 +164,30 @@ public partial class MainWindow : Window
             return;
         }
 
-        YouTubeLoginBtn.Content = "⏳ WYBIERZ KONTO W PRZEGLĄDARCE...";
-        YouTubeLoginBtn.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
-        GlobalStatusInfo.Text = "Otwarto stronę wyboru konta w Twojej przeglądarce. Wybierz swoje konto...";
+        // Open Google Account Chooser directly in default browser
+        AuthService.OpenGoogleAccountChooser();
+        GlobalStatusInfo.Text = "Otwarto wybór konta Google w przeglądarce. Wybierz konto i zatwierdź...";
 
-        var success = await AuthService.StartBrowserLoginFlowAsync(status =>
+        var confirmRes = MessageBox.Show(
+            "W Twojej domyślnej przeglądarce została otwarta oficjalna strona wyboru konta Google / YouTube.\n\nPo wybraniu swojego konta i przejściu do serwisu YouTube, kliknij [TAK], aby połączyć konto z programem ExportX.",
+            "Połącz konto YouTube",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Information);
+
+        if (confirmRes == MessageBoxResult.Yes)
         {
-            Dispatcher.InvokeAsync(() => GlobalStatusInfo.Text = status);
-        });
-
-        UpdateYouTubeLoginButtonState();
-
-        if (success || ConfigService.HasValidCookies())
-        {
+            AuthService.SaveActiveAuthSession();
+            UpdateYouTubeLoginButtonState();
             GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie z kontem Google / YouTube!";
             MessageBox.Show(
-                "Sukces!\n\nTwoje konto Google zostało pomyślnie połączone z aplikacją ExportX.\n\nFilmy z ograniczeniem wiekowym (+18) i playlisty prywatne są teraz odblokowane.",
+                "Sukces!\n\nTwoje konto Google zostało pomyślnie połączone z aplikacją ExportX.\n\nFilmy z ograniczeniem wiekowym (+18) i playlisty prywatne są teraz w pełni odblokowane.",
                 "Zalogowano pomyślnie",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
         else
         {
-            GlobalStatusInfo.Text = "Nie ukończono logowania w przeglądarce.";
+            GlobalStatusInfo.Text = "Anulowano łączenie konta.";
         }
     }
 
