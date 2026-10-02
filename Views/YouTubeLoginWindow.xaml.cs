@@ -316,100 +316,77 @@ public partial class YouTubeLoginWindow : Window
         try
         {
             var defaultBrowser = AuthService.DetectDefaultBrowser();
-            var browsers = new[] { defaultBrowser, "brave", "chrome", "edge", "firefox", "opera", "vivaldi" }.Distinct().ToList();
+            var procName = AuthService.GetProcessNameForBrowser(defaultBrowser);
+            var isRunning = Process.GetProcessesByName(procName).Length > 0;
 
-            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
-            StatusBadgeText.Text = "⏳ SPRAWDZANIE PRZEGLĄDAREK...";
-            SessionInfoText.Text = "Sprawdzanie, czy sesja jest już dostępna...";
-
-            // 1. Try silent extraction first (e.g. Firefox or closed browsers)
-            var ytDlpPath = ToolLocatorService.FindYtDlp();
-            var targetCookiesPath = ConfigService.GetCookiesPath();
-            var dir = Path.GetDirectoryName(targetCookiesPath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-            foreach (var browser in browsers)
+            // If the browser is currently running (locking files), ask for the 1-second restart immediately!
+            if (isRunning)
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = ytDlpPath,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                var ask = MessageBox.Show(
+                    "Czy chcesz, aby ExportX zrestartował przeglądarkę i zautoryzował twoje konto YouTube?\n\nTwoje otwarte karty zostaną automatycznie przywrócone!",
+                    "Autoryzacja konta YouTube",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
 
-                psi.ArgumentList.Add("--cookies-from-browser");
-                psi.ArgumentList.Add(browser);
-                psi.ArgumentList.Add("--cookies");
-                psi.ArgumentList.Add(targetCookiesPath);
-                psi.ArgumentList.Add("--skip-download");
-                psi.ArgumentList.Add("https://www.youtube.com");
-
-                try
+                if (ask == MessageBoxResult.Yes)
                 {
-                    using var process = Process.Start(psi);
-                    if (process != null)
+                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+                    StatusBadgeText.Text = "⏳ POŁĄCZENIE W TOKU...";
+
+                    var (ok, msg) = await AuthService.ExtractCookiesWithQuickRestartAsync(defaultBrowser, progress =>
                     {
-                        await process.WaitForExitAsync();
-                        if (ConfigService.HasValidCookies())
-                        {
-                            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-                            StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
-                            SessionInfoText.Text = $"✔ Sukces! Pomyślnie pobrano konto z przeglądarki {browser.ToUpperInvariant()}!";
-                            SessionSaved = true;
-                            LogService.Success($"Pomyślnie pobrano sesję z przeglądarki ({browser}).", "AUTH");
-                            MessageBox.Show($"🎉 Sukces! Pomyślnie pobrano Twoją sesję z przeglądarki {browser.ToUpperInvariant()} bez wpisywania hasła i 2FA!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
-                            DialogResult = true;
-                            Close();
-                            return;
-                        }
+                        Dispatcher.Invoke(() => SessionInfoText.Text = progress);
+                    });
+
+                    if (ok)
+                    {
+                        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+                        StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
+                        SessionInfoText.Text = "✔ Sukces! Sesja YouTube została pomyślnie zapisana.";
+                        SessionSaved = true;
+                        MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {defaultBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
+                        DialogResult = true;
+                        Close();
+                        return;
+                    }
+                    else
+                    {
+                        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
+                        StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
+                        MessageBox.Show(msg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                 }
-                catch { }
+
+                StatusBadgeText.Text = "GOTOWY DO LOGOWANIA";
+                SessionInfoText.Text = "Wskazówka: Zaloguj się w oknie powyżej lub użyj 'IMPORTUJ COOKIES.TXT'.";
+                return;
             }
 
-            // 2. If locked, offer the 1-second auto restart of default browser
-            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonYellow");
-            StatusBadgeText.Text = "⚡ SZYBKI IMPORT Z PRZEGLĄDARKI";
+            // If the browser is not running, extract directly without restart
+            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+            StatusBadgeText.Text = "⏳ POBIERANIE SESJI...";
+            SessionInfoText.Text = $"Pobieranie danych sesji z {defaultBrowser.ToUpperInvariant()}...";
 
-            var ask = MessageBox.Show(
-                "Czy chcesz, aby ExportX zrestartował przeglądarkę i zautoryzował twoje konto YouTube?\n\nTwoje otwarte karty zostaną automatycznie przywrócone!",
-                "Autoryzacja konta YouTube",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (ask == MessageBoxResult.Yes)
+            var (directOk, directMsg) = await AuthService.ExtractCookiesWithQuickRestartAsync(defaultBrowser, progress =>
             {
-                StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
-                StatusBadgeText.Text = "⏳ POŁĄCZENIE W TOKU...";
+                Dispatcher.Invoke(() => SessionInfoText.Text = progress);
+            });
 
-                var (ok, msg) = await AuthService.ExtractCookiesWithQuickRestartAsync(defaultBrowser, progress =>
-                {
-                    Dispatcher.Invoke(() => SessionInfoText.Text = progress);
-                });
-
-                if (ok)
-                {
-                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-                    StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
-                    SessionInfoText.Text = "✔ Sukces! Sesja YouTube została pomyślnie zapisana.";
-                    SessionSaved = true;
-                    MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {defaultBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
-                    DialogResult = true;
-                    Close();
-                    return;
-                }
-                else
-                {
-                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
-                    StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
-                    MessageBox.Show(msg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
+            if (directOk)
+            {
+                StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+                StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
+                SessionInfoText.Text = "✔ Sukces! Sesja YouTube została pomyślnie zapisana.";
+                SessionSaved = true;
+                MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto YouTube z przeglądarki {defaultBrowser.ToUpperInvariant()}!", "Zalogowano", MessageBoxButton.OK, MessageBoxImage.Information);
+                DialogResult = true;
+                Close();
+                return;
             }
 
             StatusBadgeText.Text = "GOTOWY DO LOGOWANIA";
             SessionInfoText.Text = "Wskazówka: Zaloguj się w oknie powyżej lub użyj 'IMPORTUJ COOKIES.TXT'.";
+            MessageBox.Show(directMsg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
