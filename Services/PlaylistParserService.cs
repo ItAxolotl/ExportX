@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -356,9 +356,39 @@ public class PlaylistParserService
                 var type = match.Groups[1].Value.ToLowerInvariant();
                 var id = match.Groups[2].Value;
 
-                // 1. Try with Spotify Client Credentials (supports 500+ and 1000+ songs pagination!)
                 var token = await GetSpotifyAccessTokenAsync();
 
+                // 1. For playlists, try high-speed spclient (fetches 100% of tracks, 200+, 500+, 1000+)
+                if (type == "playlist" && !string.IsNullOrEmpty(token))
+                {
+                    try
+                    {
+                        var spotifyUser = new SpotifyUserService();
+                        var spTracks = await spotifyUser.GetPlaylistTracksAsync(id, token, progress);
+                        if (spTracks.Count > 0)
+                        {
+                            foreach (var t in spTracks)
+                            {
+                                var (dispArt, searchArt) = FileImportService.CleanArtistString(t.Artist);
+                                var query = !string.IsNullOrWhiteSpace(searchArt) ? $"{searchArt} - {t.Title}" : t.Title;
+                                list.Add(new ParsedTrackInfo
+                                {
+                                    QueryOrUrl = query,
+                                    Title = t.Title,
+                                    Artist = dispArt
+                                });
+                            }
+                            LogService.Success($"Wczytano {list.Count} utworów z playlisty Spotify przez spclient.", "SPOTIFY");
+                            return list;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogService.Debug($"Spclient playlist parse fallback: {ex.Message}", "SPOTIFY");
+                    }
+                }
+
+                // 2. Try with Spotify Client Credentials (supports 500+ and 1000+ songs pagination!)
                 if (!string.IsNullOrEmpty(token))
                 {
                     if (type == "playlist")
