@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-00F0FF?style=flat-square&logo=windows)](https://github.com)
 [![Framework](https://img.shields.io/badge/.NET-10.0%20WPF-FFE600?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com)
 [![License](https://img.shields.io/badge/License-MIT-4ADE80?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/badge/Version-v1.2%20Portable-C084FC?style=flat-square)](dist/ExportX-Portable.zip)
+[![Release](https://img.shields.io/badge/Version-v1.3%20Portable-C084FC?style=flat-square)](dist/ExportX-Portable.zip)
 
 Nowoczesna, ekstremalnie wydajna i wielowątkowa aplikacja desktopowa dla systemu Windows (napisana w **C# .NET 10 / WPF**) łącząca surowy styl **Neo-Brutalism** (jaskrawe akcenty, 2.5px solidne czarne obramowania, twarde cienie) z motywem **szkolnego zeszytu w kratkę** (papier milimetrowy/kratka, czerwony margines, znaczniki sticky-notes).
 
@@ -24,8 +24,9 @@ Nowoczesna, ekstremalnie wydajna i wielowątkowa aplikacja desktopowa dla system
 - **Wklejanie listy**: Dialog `📋 WKLEJ LISTĘ` pozwala wkleić dziesiątki utworów/linków naraz.
 - **Inteligentny filtr zapytań**: Automatycznie oczyszcza nazwy wykonawców z tagów beatmakerów (np. `@atutowy`, `Nolyrics Beats`), pobierając oryginalne utwory zamiast samych podkładów muzycznych.
 
-### 3. 🔑 Wbudowane Bezpieczne Logowanie YouTube / Google:
-- Opcja **`🔑 KONTO YOUTUBE`** otwiera wbudowaną przeglądarkę Microsoft WebView2, umożliwiając bezpieczne logowanie na konto Google.
+### 3. 🔑 Błyskawiczne Logowanie Google / YouTube (Antigravity Style):
+- Opcja **`🔑 KONTO YOUTUBE`** otwiera Twoją domyślną przeglądarkę na oficjalnej stronie wyboru kont Google (`Google Account Chooser`).
+- Po wybraniu konta aplikacja w ułamku sekundy automatycznie przechwytuje i zapisuje sesję.
 - Ciasteczka sesji są zapisywane **wyłącznie lokalnie na Twoim dysku** (`youtube_cookies.txt`).
 - **Odblokowuje utwory z ograniczeniem wiekowym (+18)**, prywatne playlisty oraz zapobiega blokadom anty-botowym YouTube.
 

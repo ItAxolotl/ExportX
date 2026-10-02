@@ -1,8 +1,9 @@
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using ExportX.Services;
 using Microsoft.Web.WebView2.Core;
 
@@ -11,7 +12,8 @@ namespace ExportX.Views;
 public partial class YouTubeLoginWindow : Window
 {
     private bool _isInitialized;
-
+    private bool _isSaving;
+    private DispatcherTimer? _cookieWatcherTimer;
     public bool SessionSaved { get; private set; }
 
     public YouTubeLoginWindow()
@@ -19,6 +21,12 @@ public partial class YouTubeLoginWindow : Window
         InitializeComponent();
         SafeSetWindowIcon();
         Loaded += YouTubeLoginWindow_Loaded;
+        Closing += YouTubeLoginWindow_Closing;
+    }
+
+    private void YouTubeLoginWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _cookieWatcherTimer?.Stop();
     }
 
     private void SafeSetWindowIcon()
@@ -39,7 +47,7 @@ public partial class YouTubeLoginWindow : Window
                             hBitmap,
                             IntPtr.Zero,
                             Int32Rect.Empty,
-                            BitmapSizeOptions.FromEmptyOptions());
+                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
                     }
                     finally
                     {
@@ -48,10 +56,7 @@ public partial class YouTubeLoginWindow : Window
                 }
             }
         }
-        catch
-        {
-            // Ignore icon loading errors safely
-        }
+        catch { }
     }
 
     [System.Runtime.InteropServices.DllImport("gdi32.dll", SetLastError = true)]
@@ -59,8 +64,8 @@ public partial class YouTubeLoginWindow : Window
 
     private async void YouTubeLoginWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        await InitializeWebViewAsync();
         UpdateDeleteButtonState();
+        await InitializeWebViewAsync();
     }
 
     private async Task InitializeWebViewAsync()
@@ -71,88 +76,101 @@ public partial class YouTubeLoginWindow : Window
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: profileFolder);
             await LoginWebView.EnsureCoreWebView2Async(env);
 
+            LoginWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(246, 244, 237);
+            LoginWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+
             LoginWebView.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted;
             LoginWebView.CoreWebView2.SourceChanged += CoreWebView2_SourceChanged;
 
-            // Navigate to YouTube login
-            LoginWebView.Source = new Uri("https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com");
+            // Open the official Google Account Chooser URL
+            var accountChooserUrl = "https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fwww.youtube.com";
+            LoginWebView.Source = new Uri(accountChooserUrl);
+
             _isInitialized = true;
             LoadingOverlay.Visibility = Visibility.Collapsed;
+
+            // Start auto-detection watcher
+            StartCookieWatcher();
         }
         catch (Exception ex)
         {
-            LoadingOverlay.Visibility = Visibility.Collapsed;
-            MessageBox.Show($"Nie udało się uruchomić modułu przeglądarki WebView2:\n\n{ex.Message}", "Błąd WebView2", MessageBoxButton.OK, MessageBoxImage.Error);
+            LoadingOverlay.Visibility = Visibility.Visible;
+            OverlayTitle.Text = "⚠️ Moduł przeglądarki WebView2";
+            OverlaySubtitle.Text = $"Nie udało się uruchomić wbudowanego widoku ({ex.Message}).";
+            FallbackPanel.Visibility = Visibility.Visible;
+            LogService.Warn($"Błąd inicjalizacji WebView2: {ex.Message}", "AUTH");
         }
+    }
+
+    private void StartCookieWatcher()
+    {
+        _cookieWatcherTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1.5)
+        };
+        _cookieWatcherTimer.Tick += async (_, _) =>
+        {
+            await CheckAndAutoSaveSessionAsync();
+        };
+        _cookieWatcherTimer.Start();
     }
 
     private async void CoreWebView2_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
     {
-        await CheckLoginStateAsync();
+        await CheckAndAutoSaveSessionAsync();
     }
 
     private async void CoreWebView2_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        await CheckLoginStateAsync();
+        await CheckAndAutoSaveSessionAsync();
     }
 
-    private async Task CheckLoginStateAsync()
+    private async Task CheckAndAutoSaveSessionAsync()
     {
-        if (!_isInitialized || LoginWebView.CoreWebView2 == null) return;
+        if (!_isInitialized || LoginWebView.CoreWebView2 == null || _isSaving) return;
 
         try
         {
             var cookieManager = LoginWebView.CoreWebView2.CookieManager;
             var cookies = await cookieManager.GetCookiesAsync("https://www.youtube.com");
 
-            bool hasAuthCookie = cookies.Any(c => c.Name == "LOGIN_INFO" || c.Name == "SID" || c.Name == "SSID" || c.Name == "SAPISID" || c.Name == "__Secure-1PSID");
+            bool hasAuthCookie = cookies.Any(c => 
+                c.Name == "LOGIN_INFO" || 
+                c.Name == "SID" || 
+                c.Name == "SSID" || 
+                c.Name == "SAPISID" || 
+                c.Name == "__Secure-1PSID" ||
+                c.Name == "__Secure-3PSID");
 
             if (hasAuthCookie)
             {
+                _isSaving = true;
+                _cookieWatcherTimer?.Stop();
+
                 StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-                StatusBadgeText.Text = "🟢 WYKRYTO AKTYWNĄ SESJĘ YOUTUBE";
-                SessionInfoText.Text = "✔ Wykryto zalogowane konto! Kliknij zielony przycisk 'ZAPISZ SESJĘ I ZAMKNIJ', aby zapisać.";
-            }
-            else
-            {
-                StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonYellow");
-                StatusBadgeText.Text = "🟡 OCZEKIWANIE NA ZALOGOWANIE";
-                SessionInfoText.Text = "Zaloguj się na swoje konto Google / YouTube w powyższym oknie.";
+                StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
+                SessionInfoText.Text = "✔ Zalogowano! Automatyczne zapisywanie sesji...";
+
+                await SaveSessionInternalAsync(cookieManager);
             }
         }
-        catch
-        {
-            // Ignore check errors
-        }
+        catch { }
     }
 
-    private async void SaveSession_Click(object sender, RoutedEventArgs e)
+    private async Task SaveSessionInternalAsync(CoreWebView2CookieManager cookieManager)
     {
-        if (!_isInitialized || LoginWebView.CoreWebView2 == null)
-        {
-            MessageBox.Show("Przeglądarka nie jest jeszcze gotowa.", "Uwaga", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
         try
         {
-            var cookieManager = LoginWebView.CoreWebView2.CookieManager;
             var ytCookies = await cookieManager.GetCookiesAsync("https://www.youtube.com");
             var googleCookies = await cookieManager.GetCookiesAsync("https://accounts.google.com");
-            var googleRootCookies = await cookieManager.GetCookiesAsync("https://google.com");
+            var rootCookies = await cookieManager.GetCookiesAsync("https://google.com");
 
             var allCookies = ytCookies
                 .Concat(googleCookies)
-                .Concat(googleRootCookies)
+                .Concat(rootCookies)
                 .GroupBy(c => $"{c.Domain}_{c.Path}_{c.Name}")
                 .Select(g => g.First())
                 .ToList();
-
-            if (allCookies.Count == 0)
-            {
-                var res = MessageBox.Show("Nie wykryto żadnych ciasteczek sesji. Czy na pewno chcesz zapisać pustą sesję?", "Brak ciasteczek", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (res != MessageBoxResult.Yes) return;
-            }
 
             var cookiesPath = ConfigService.GetCookiesPath();
             var dir = Path.GetDirectoryName(cookiesPath);
@@ -164,7 +182,7 @@ public partial class YouTubeLoginWindow : Window
             var sb = new StringBuilder();
             sb.AppendLine("# Netscape HTTP Cookie File");
             sb.AppendLine("# http://curl.haxx.se/rfc/cookie_spec.html");
-            sb.AppendLine("# This file was generated by ExportX for YouTube Age-Restriction & Session Authentication.");
+            sb.AppendLine("# This file was auto-generated by ExportX after Account Chooser selection.");
             sb.AppendLine();
 
             foreach (var c in allCookies)
@@ -181,17 +199,89 @@ public partial class YouTubeLoginWindow : Window
             }
 
             File.WriteAllText(cookiesPath, sb.ToString(), new UTF8Encoding(false));
-            LogService.Success($"Zapisano sesję YouTube ({allCookies.Count} ciasteczek) do pliku: {cookiesPath}", "AUTH");
+            LogService.Success($"Zalogowano automatycznie do konta YouTube! Zapisano {allCookies.Count} ciasteczek.", "AUTH");
 
             SessionSaved = true;
-            MessageBox.Show("Sesja YouTube została pomyślnie zapisana!\n\nOd teraz wszystkie utwory z ograniczeniem wiekowym (+18) oraz prywatne playlisty będą pobierane automatycznie z Twojego konta.", "Zalogowano pomyślnie", MessageBoxButton.OK, MessageBoxImage.Information);
+            await Task.Delay(900);
 
             DialogResult = true;
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Błąd podczas zapisywania sesji:\n\n{ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
+            _isSaving = false;
+            LogService.Error($"Błąd podczas automatycznego zapisu sesji: {ex.Message}", "AUTH");
+        }
+    }
+
+    private async void ManualSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isInitialized || LoginWebView.CoreWebView2 == null)
+        {
+            MessageBox.Show("Przeglądarka nie jest jeszcze zainicjalizowana.", "Uwaga", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        await SaveSessionInternalAsync(LoginWebView.CoreWebView2.CookieManager);
+    }
+
+    private void OpenInExternalBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var url = "https://accounts.google.com/AccountChooser?service=youtube&continue=https%3A%2F%2Fwww.youtube.com";
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            LogService.Info("Otwarto stronę wyboru konta w domyślnej przeglądarce.", "AUTH");
+        }
+        catch { }
+    }
+
+    private async void ExtractFromExternalBrowser_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var ytDlpPath = ToolLocatorService.FindYtDlp();
+            var targetCookiesPath = ConfigService.GetCookiesPath();
+            var dir = Path.GetDirectoryName(targetCookiesPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = ytDlpPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            psi.ArgumentList.Add("--cookies-from-browser");
+            psi.ArgumentList.Add("edge");
+            psi.ArgumentList.Add("--cookies");
+            psi.ArgumentList.Add(targetCookiesPath);
+            psi.ArgumentList.Add("--skip-download");
+            psi.ArgumentList.Add("https://www.youtube.com");
+
+            using var process = Process.Start(psi);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+                if (ConfigService.HasValidCookies())
+                {
+                    SessionSaved = true;
+                    LogService.Success("Pomyślnie pobrano sesję z przeglądarki.", "AUTH");
+                    MessageBox.Show("Zalogowano pomyślnie z przeglądarki!", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
+                    DialogResult = true;
+                    Close();
+                    return;
+                }
+            }
+
+            MessageBox.Show("Nie udało się pobrać sesji automatycznie. Zaloguj się w oknie programu.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Błąd: {ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -210,16 +300,11 @@ public partial class YouTubeLoginWindow : Window
 
                 StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
                 StatusBadgeText.Text = "⚪ SESJA USUNIĘTA";
-                SessionInfoText.Text = "Sesja została usunięta. Zaloguj się ponownie, jeśli chcesz korzystać z konta.";
+                SessionInfoText.Text = "Sesja została usunięta.";
                 UpdateDeleteButtonState();
                 LogService.Info("Usunięto zapisaną sesję YouTube.", "AUTH");
-
-                MessageBox.Show("Sesja YouTube została usunięta.", "Wylogowano", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Błąd podczas usuwania sesji:\n\n{ex.Message}", "Błąd", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            catch { }
         }
     }
 

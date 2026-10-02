@@ -4,6 +4,7 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="🔑 LOGOWANIE DO YOUTUBE / GOOGLE"
         Height="720" Width="920"
+        MinHeight="550" MinWidth="750"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource NotebookGridPatternBrush}"
         WindowStyle="SingleBorderWindow"
@@ -11,9 +12,9 @@
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /> <!-- Header -->
+            <RowDefinition Height="*" />    <!-- Web Browser & Account Chooser -->
+            <RowDefinition Height="Auto" /> <!-- Bottom Action Bar -->
         </Grid.RowDefinitions>
 
         <!-- Red margin stripe decoration on left -->
@@ -23,8 +24,8 @@
                 Background="{StaticResource BrushNotebookRedMargin}" 
                 Margin="-8,-16,0,-16" />
 
-        <!-- Header Card -->
-        <Border Grid.Row="0" Style="{StaticResource BrutalistCard}" Margin="0,0,0,12" Background="{StaticResource BrushNeonYellow}">
+        <!-- ================= HEADER CARD ================= -->
+        <Border Grid.Row="0" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Background="{StaticResource BrushNeonYellow}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -37,9 +38,9 @@
                     <TextBlock Text="LOGOWANIE DO YOUTUBE / GOOGLE" 
                                FontFamily="Segoe UI" 
                                FontWeight="Black" 
-                               FontSize="16" 
+                               FontSize="15" 
                                Foreground="{StaticResource BrushBlackBorder}" />
-                    <TextBlock Text="Zaloguj się na swoje konto Google. Twoja sesja (cookies) zostanie bezpiecznie zapisana TYLKO lokalnie na Twoim dysku, odblokowując filmy +18 i playlisty prywatne." 
+                    <TextBlock Text="Wybierz swoje konto Google poniżej lub zaloguj się od zera. Po wybraniu konta aplikacja natychmiast automatycznie pobierze sesję!" 
                                FontSize="11" 
                                FontWeight="SemiBold" 
                                Foreground="#333333" 
@@ -47,25 +48,47 @@
                 </StackPanel>
 
                 <Border Grid.Column="2" x:Name="StatusBadge" Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonLime}" Padding="8,4" VerticalAlignment="Center">
-                    <TextBlock x:Name="StatusBadgeText" Text="BEZPIECZNE LOGOWANIE" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" />
+                    <TextBlock x:Name="StatusBadgeText" Text="WYBIERZ KONTO PONIŻEJ" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" />
                 </Border>
             </Grid>
         </Border>
 
-        <!-- WebView2 Browser Container -->
-        <Border Grid.Row="1" Style="{StaticResource BrutalistCard}" Margin="0,0,0,12" Padding="2" Background="{StaticResource BrushPaperWhite}">
+        <!-- ================= MAIN WEBVIEW BROWSER ================= -->
+        <Border Grid.Row="1" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Padding="2" Background="{StaticResource BrushPaperWhite}">
             <Grid>
                 <wv2:WebView2 x:Name="LoginWebView" />
-                <Border x:Name="LoadingOverlay" Background="#F0F6F4ED" Visibility="Visible">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="⏳ Ładowanie przeglądarki logowania..." FontWeight="Bold" FontSize="14" Foreground="{StaticResource BrushBlackBorder}" HorizontalAlignment="Center" />
-                        <TextBlock Text="Proszę czekać..." FontSize="11" Foreground="#666666" Margin="0,4,0,0" HorizontalAlignment="Center" />
+
+                <!-- Loading / Fallback Overlay -->
+                <Border x:Name="LoadingOverlay" Background="#F6F4ED" Visibility="Visible">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                        <TextBlock x:Name="OverlayTitle" Text="⏳ Ładowanie strony wyboru konta..." FontWeight="Black" FontSize="14" Foreground="{StaticResource BrushBlackBorder}" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="OverlaySubtitle" Text="Proszę czekać..." FontSize="11" Foreground="#666666" Margin="0,4,0,12" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+
+                        <!-- Fallback panel if WebView2 runtime is missing -->
+                        <StackPanel x:Name="FallbackPanel" Visibility="Collapsed">
+                            <TextBlock Text="Nie udało się załadować wbudowanego okna. Możesz otworzyć stronę w przeglądarce i pobrać sesję jednym kliknięciem:" FontSize="11" FontWeight="Bold" Margin="0,0,0,8" TextWrapping="Wrap" TextAlignment="Center" />
+                            
+                            <Button Content="🌐 OTWÓRZ W PRZEGLĄDARCE" 
+                                    Style="{StaticResource CyanButton}" 
+                                    FontWeight="Black" 
+                                    FontSize="11" 
+                                    Padding="14,8" 
+                                    Margin="0,0,0,8"
+                                    Click="OpenInExternalBrowser_Click" />
+
+                            <Button Content="📥 POBIERZ SESJĘ Z PRZEGLĄDARKI" 
+                                    Style="{StaticResource GreenStartButton}" 
+                                    FontWeight="Black" 
+                                    FontSize="11" 
+                                    Padding="14,8" 
+                                    Click="ExtractFromExternalBrowser_Click" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- Bottom Action Bar -->
+        <!-- ================= BOTTOM ACTION BAR ================= -->
         <Border Grid.Row="2" Style="{StaticResource BrutalistCard}" Padding="10,8" Background="{StaticResource BrushPaperWhite}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -73,43 +96,53 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="SessionInfoText" 
-                               Text="Wskazówka: Po zalogowaniu się na stronie YouTube kliknij 'ZAPISZ SESJĘ I ZAMKNIJ'." 
+                               Text="Wskazówka: Kliknij swoje konto powyżej. Sesja zostanie automatycznie zapisana." 
                                FontWeight="Bold" 
                                FontSize="11" 
                                Foreground="{StaticResource BrushBlackBorder}" />
                 </StackPanel>
 
                 <Button Grid.Column="1" 
+                        Content="🌐 OTWÓRZ W PRZEGLĄDARCE" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}"
+                        FontSize="11"
+                        Padding="10,6"
+                        Margin="0,0,6,0"
+                        Click="OpenInExternalBrowser_Click" />
+
+                <Button Grid.Column="2" 
                         x:Name="DeleteSessionBtn"
                         Content="🗑️ USUŃ SESJĘ" 
                         Style="{StaticResource BrutalistButton}" 
                         Background="{StaticResource BrushNeonPink}"
                         FontSize="11"
-                        Padding="12,6"
-                        Margin="0,0,8,0"
+                        Padding="10,6"
+                        Margin="0,0,6,0"
                         Click="DeleteSession_Click" />
 
-                <Button Grid.Column="2" 
+                <Button Grid.Column="3" 
                         Content="❌ ANULUJ" 
                         Style="{StaticResource BrutalistButton}" 
                         Background="{StaticResource BrushPaperWhite}"
                         FontSize="11"
-                        Padding="12,6"
-                        Margin="0,0,8,0"
+                        Padding="10,6"
+                        Margin="0,0,6,0"
                         Click="Cancel_Click" />
 
-                <Button Grid.Column="3" 
-                        x:Name="SaveSessionBtn"
-                        Content="💾 ZAPISZ SESJĘ I ZAMKNIJ" 
+                <Button Grid.Column="4" 
+                        x:Name="ManualSaveBtn"
+                        Content="💾 ZAPISZ RĘCZNIE" 
                         Style="{StaticResource GreenStartButton}" 
-                        FontSize="12"
+                        FontSize="11"
                         FontWeight="Black"
-                        Padding="16,6"
-                        Click="SaveSession_Click" />
+                        Padding="14,6"
+                        Click="ManualSave_Click" />
             </Grid>
         </Border>
     </Grid>

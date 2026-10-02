@@ -22,6 +22,8 @@ public class ComboBoxDisplayItem<T>
         Value = value;
         DisplayName = displayName;
     }
+
+    public override string ToString() => DisplayName;
 }
 
 public partial class MainWindow : Window
@@ -142,15 +144,55 @@ public partial class MainWindow : Window
         }
     }
 
-    private void YouTubeLogin_Click(object sender, RoutedEventArgs e)
+    private async void YouTubeLogin_Click(object sender, RoutedEventArgs e)
     {
-        var loginWin = new Views.YouTubeLoginWindow
+        if (ConfigService.HasValidCookies())
         {
-            Owner = this
-        };
+            var res = MessageBox.Show(
+                "Twoje konto YouTube jest aktualnie połączone i aktywne.\n\nCzy chcesz wylogować się z aplikacji lub zmienić konto?",
+                "Zarządzanie kontem YouTube",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
 
-        loginWin.ShowDialog();
+            if (res == MessageBoxResult.Yes)
+            {
+                ConfigService.DeleteCookies();
+                UpdateYouTubeLoginButtonState();
+                LogService.Info("Wylogowano konto YouTube.", "AUTH");
+                GlobalStatusInfo.Text = "Wylogowano konto YouTube.";
+            }
+            return;
+        }
+
+        // Direct Browser Authentication Flow (Antigravity Style!)
+        AuthService.OpenGoogleAccountChooser();
+
+        YouTubeLoginBtn.Content = "⏳ WYBIERZ KONTO W PRZEGLĄDARCE...";
+        YouTubeLoginBtn.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+        GlobalStatusInfo.Text = "Otworzono stronę wyboru konta Google w Twojej domyślnej przeglądarce. Wybierz konto...";
+
+        var success = await AuthService.StartLiveBrowserAuthWatcherAsync(status =>
+        {
+            Dispatcher.InvokeAsync(() => GlobalStatusInfo.Text = status);
+        });
+
         UpdateYouTubeLoginButtonState();
+
+        if (success)
+        {
+            GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie przez przeglądarkę!";
+            MessageBox.Show(
+                "Sukces!\n\nTwoje konto Google zostało pomyślnie połączone z aplikacją ExportX.\n\nOd teraz filmy +18 i playlisty prywatne będą pobierane automatycznie z Twojego konta.",
+                "Zalogowano pomyślnie",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        else if (!ConfigService.HasValidCookies())
+        {
+            var loginWin = new Views.YouTubeLoginWindow { Owner = this };
+            loginWin.ShowDialog();
+            UpdateYouTubeLoginButtonState();
+        }
     }
 
     private void OnLogAdded(LogEntry entry)
