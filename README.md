@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-00F0FF?style=flat-square&logo=windows)](https://github.com/ItAxolotl/ExportX)
 [![Framework](https://img.shields.io/badge/.NET-10.0%20WPF-FFE600?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com)
 [![License](https://img.shields.io/badge/License-MIT-4ADE80?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/badge/Version-v1.6.1%20Portable-C084FC?style=flat-square)](https://github.com/ItAxolotl/ExportX/releases)
+[![Release](https://img.shields.io/badge/Version-v1.6.2%20Portable-C084FC?style=flat-square)](https://github.com/ItAxolotl/ExportX/releases)
 
 A fast, multithreaded Windows desktop music and video downloader built with **C# .NET 10 / WPF**, featuring a distinctive **Neo-Brutalism** notebook theme.
 

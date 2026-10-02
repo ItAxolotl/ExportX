@@ -89,7 +89,7 @@
                 <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="10,4" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="📓 EXPORT.X" FontWeight="Black" FontSize="16" Foreground="{StaticResource BrushBlackBorder}" />
-                        <TextBlock Text="v1.6.1" FontWeight="Bold" FontSize="11" Foreground="#444444" Margin="6,3,0,0" />
+                        <TextBlock Text="v1.6.2" FontWeight="Bold" FontSize="11" Foreground="#444444" Margin="6,3,0,0" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonCyan}" Padding="8,4">
