@@ -90,27 +90,57 @@ public partial class SpotifyLoginWindow : Window
         {
             // Comprehensive Spotify Web token extraction script
             const string script = @"(async () => {
+                // 1. Try DOM #session element
                 try {
-                    const r1 = await fetch('/get_access_token?reason=transport&productType=web_player');
-                    if (r1.ok) {
-                        const d1 = await r1.json();
-                        if (d1 && d1.accessToken && !d1.isAnonymous) return JSON.stringify(d1);
+                    const el = document.getElementById('session');
+                    if (el && el.textContent) {
+                        const d = JSON.parse(el.textContent);
+                        if (d && d.accessToken && !d.isAnonymous) return JSON.stringify(d);
                     }
                 } catch(e) {}
 
+                // 2. Try DOM #config element
                 try {
-                    const s = document.getElementById('session');
-                    if (s && s.textContent) {
-                        const d2 = JSON.parse(s.textContent);
-                        if (d2 && d2.accessToken && !d2.isAnonymous) return JSON.stringify(d2);
+                    const el = document.getElementById('config');
+                    if (el && el.textContent) {
+                        const d = JSON.parse(el.textContent);
+                        if (d && d.accessToken && !d.isAnonymous) return JSON.stringify(d);
                     }
                 } catch(e) {}
 
+                // 3. Try fetch web player access token endpoint
                 try {
-                    const r2 = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player');
-                    if (r2.ok) {
-                        const d3 = await r2.json();
-                        if (d3 && d3.accessToken && !d3.isAnonymous) return JSON.stringify(d3);
+                    const r = await fetch('/get_access_token?reason=transport&productType=web_player');
+                    if (r.ok) {
+                        const text = await r.text();
+                        if (text && text.includes('accessToken')) return text;
+                    }
+                } catch(e) {}
+
+                // 4. Try absolute fetch
+                try {
+                    const r = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player');
+                    if (r.ok) {
+                        const text = await r.text();
+                        if (text && text.includes('accessToken')) return text;
+                    }
+                } catch(e) {}
+
+                // 5. Try sessionStorage and localStorage for Spotify Bearer token
+                try {
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const k = sessionStorage.key(i);
+                        const v = sessionStorage.getItem(k);
+                        if (v && v.length > 50 && (v.startsWith('BQ') || v.includes('Bearer'))) {
+                            return JSON.stringify({ accessToken: v.replace('Bearer ', ''), isAnonymous: false });
+                        }
+                    }
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        const v = localStorage.getItem(k);
+                        if (v && v.length > 50 && (v.startsWith('BQ') || v.includes('Bearer'))) {
+                            return JSON.stringify({ accessToken: v.replace('Bearer ', ''), isAnonymous: false });
+                        }
                     }
                 } catch(e) {}
 
@@ -120,13 +150,20 @@ public partial class SpotifyLoginWindow : Window
             var resultJsonStr = await LoginWebView.CoreWebView2.ExecuteScriptAsync(script);
             if (!string.IsNullOrWhiteSpace(resultJsonStr) && resultJsonStr != "null" && resultJsonStr != "\"null\"")
             {
-                var innerJson = resultJsonStr.StartsWith("\"") && resultJsonStr.EndsWith("\"")
-                    ? JsonSerializer.Deserialize<string>(resultJsonStr)
-                    : resultJsonStr;
-
-                if (!string.IsNullOrWhiteSpace(innerJson))
+                string jsonToParse = resultJsonStr.Trim();
+                try
                 {
-                    using var doc = JsonDocument.Parse(innerJson);
+                    using var initialDoc = JsonDocument.Parse(jsonToParse);
+                    if (initialDoc.RootElement.ValueKind == JsonValueKind.String)
+                    {
+                        jsonToParse = initialDoc.RootElement.GetString() ?? jsonToParse;
+                    }
+                }
+                catch { }
+
+                if (!string.IsNullOrWhiteSpace(jsonToParse) && jsonToParse.Contains("accessToken"))
+                {
+                    using var doc = JsonDocument.Parse(jsonToParse);
                     var root = doc.RootElement;
 
                     bool isAnonymous = root.TryGetProperty("isAnonymous", out var anonProp) && anonProp.GetBoolean();
@@ -174,7 +211,10 @@ public partial class SpotifyLoginWindow : Window
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            LogService.Debug($"Błąd sprawdzania sesji: {ex.Message}", "SPOTIFY");
+        }
         finally
         {
             _isChecking = false;
