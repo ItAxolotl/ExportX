@@ -1,4 +1,4 @@
-<Window x:Class="ExportX.Views.SpotifyBrowserWindow"
+﻿<Window x:Class="ExportX.Views.SpotifyBrowserWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="clr-namespace:ExportX.Models"
@@ -145,7 +145,7 @@
                                      Style="{StaticResource BrutalistTextBox}" 
                                      FontSize="11" 
                                      Padding="8,5" 
-                                     KeyDown="PlaylistSearchTextBox_KeyDown" />
+                                     KeyDown="PlaylistSearchTextBox_KeyDown" TextChanged="PlaylistSearchTextBox_TextChanged" />
                             <TextBlock x:Name="SearchPlaceholder" 
                                        Text="🔍 Szukaj playlisty lub wklej link..." 
                                        Foreground="#888888" 

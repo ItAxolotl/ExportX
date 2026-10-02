@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,6 +14,7 @@ public partial class SpotifyBrowserWindow : Window
     private readonly SpotifyUserService _spotifyUserService = new();
     private readonly ObservableCollection<SpotifyPlaylistSummary> _playlists = new();
     private readonly ObservableCollection<SpotifyTrackItem> _tracks = new();
+    private readonly List<SpotifyPlaylistSummary> _allLoadedPlaylists = new();
 
     public List<ParsedTrackInfo> SelectedTracksToImport { get; private set; } = new();
     public bool ShouldStartImmediately { get; private set; } = false;
@@ -58,7 +59,7 @@ public partial class SpotifyBrowserWindow : Window
         if (SpotifyAuthService.IsLoggedIn && session.UserProfile != null)
         {
             var user = session.UserProfile;
-            AccountStatusText.Text = $"🟢 Zalogowano jako: {user.DisplayName} ({user.Product.ToUpperInvariant()}) | Obserwujących: {user.FollowersCount}";
+            AccountStatusText.Text = $"👤 Zalogowano jako: {user.DisplayName} ({user.Product.ToUpperInvariant()}) | Obserwujących: {user.FollowersCount}";
             LoginButton.Content = "🔄 ZMIEŃ KONTO";
             LogoutButton.Visibility = Visibility.Visible;
         }
@@ -75,7 +76,6 @@ public partial class SpotifyBrowserWindow : Window
         var token = await SpotifyAuthService.GetValidAccessTokenAsync();
         if (string.IsNullOrEmpty(token))
         {
-            // Prompt user to log in
             var res = MessageBox.Show(
                 "Aby przeglądać playlisty i utwory ze Spotify, musisz się zalogować lub skonfigurować klucze API.\n\nCzy chcesz otworzyć okno logowania Spotify?",
                 "Wymagane logowanie Spotify",
@@ -103,6 +103,7 @@ public partial class SpotifyBrowserWindow : Window
         if (string.IsNullOrEmpty(token))
         {
             _playlists.Clear();
+            _allLoadedPlaylists.Clear();
             GlobalStatusText.Text = "Zaloguj się do Spotify, aby wczytać swoje playlisty.";
             return;
         }
@@ -120,6 +121,7 @@ public partial class SpotifyBrowserWindow : Window
         {
             var list = await _spotifyUserService.GetUserPlaylistsAsync(token, progress);
             _playlists.Clear();
+            _allLoadedPlaylists.Clear();
 
             if (list.Count == 0 && SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
             {
@@ -129,6 +131,7 @@ public partial class SpotifyBrowserWindow : Window
             foreach (var p in list)
             {
                 _playlists.Add(p);
+                _allLoadedPlaylists.Add(p);
             }
 
             GlobalStatusText.Text = $"Wczytano {_playlists.Count} playlist użytkownika.";
@@ -276,6 +279,32 @@ public partial class SpotifyBrowserWindow : Window
         await LoadLikedSongsAsync();
     }
 
+    private void PlaylistSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var query = PlaylistSearchTextBox.Text.Trim();
+        SearchPlaceholder.Visibility = string.IsNullOrEmpty(PlaylistSearchTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_isLikedSongsMode || _allLoadedPlaylists.Count == 0) return;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            _playlists.Clear();
+            foreach (var p in _allLoadedPlaylists) _playlists.Add(p);
+            GlobalStatusText.Text = $"Wszystkie playlisty ({_playlists.Count}).";
+            return;
+        }
+
+        var filtered = _allLoadedPlaylists
+            .Where(p => p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        p.OwnerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        p.Id.Equals(query, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        _playlists.Clear();
+        foreach (var p in filtered) _playlists.Add(p);
+        GlobalStatusText.Text = $"Znaleziono {filtered.Count} playlist dla '{query}'.";
+    }
+
     private async void PlaylistSearchTextBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter)
@@ -303,44 +332,12 @@ public partial class SpotifyBrowserWindow : Window
                             IsPublic = true
                         };
                         _playlists.Insert(0, existing);
+                        _allLoadedPlaylists.Insert(0, existing);
                     }
                     PlaylistsListBox.SelectedItem = existing;
                     await LoadTracksForPlaylistAsync(pId);
-                    return;
                 }
             }
-
-            // Search by query
-            var token = await EnsureAccessTokenAsync();
-            if (string.IsNullOrEmpty(token)) return;
-
-            PlaylistsLoadingOverlay.Visibility = Visibility.Visible;
-            PlaylistsLoadingText.Text = $"Szukanie '{query}' w Spotify...";
-            GlobalStatusText.Text = $"Wyszukiwanie playlist dla: {query}...";
-
-            var results = await _spotifyUserService.SearchPlaylistsAsync(query, token);
-            if (results.Count > 0)
-            {
-                _playlists.Clear();
-                foreach (var r in results)
-                {
-                    _playlists.Add(r);
-                }
-                PlaylistsListBox.SelectedIndex = 0;
-                GlobalStatusText.Text = $"Znaleziono {results.Count} pasujących playlist.";
-            }
-            else
-            {
-                GlobalStatusText.Text = $"Brak wyników wyszukiwania dla '{query}'.";
-            }
-
-            PlaylistsLoadingOverlay.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            SearchPlaceholder.Visibility = string.IsNullOrEmpty(PlaylistSearchTextBox.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
         }
     }
 
@@ -434,26 +431,6 @@ public partial class SpotifyBrowserWindow : Window
         }
         else
         {
-            var session = SpotifyAuthService.CurrentSession;
-            if (session.CachedPlaylists.Count == 0 && _playlists.Count == 0)
-            {
-                var res = MessageBox.Show(
-                    "Nie znaleziono jeszcze playlist w pamięci podręcznej.\n\nCzy chcesz otworzyć okno odtwarzacza Spotify, aby zsynchronizować Twoje playlisty?",
-                    "Synchronizacja playlist",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (res == MessageBoxResult.Yes)
-                {
-                    var loginWin = new SpotifyLoginWindow { Owner = this };
-                    if (loginWin.ShowDialog() == true)
-                    {
-                        UpdateAccountUi();
-                        _ = LoadUserPlaylistsAsync();
-                        return;
-                    }
-                }
-            }
             _ = LoadUserPlaylistsAsync();
         }
     }
