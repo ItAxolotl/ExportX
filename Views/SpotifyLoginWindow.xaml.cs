@@ -158,6 +158,54 @@ public partial class SpotifyLoginWindow : Window
         }
     }
 
+    private async Task<bool> InjectCookiesIntoWebViewAsync(string cookiesFilePath)
+    {
+        if (LoginWebView.CoreWebView2 == null || !File.Exists(cookiesFilePath)) return false;
+
+        try
+        {
+            var cookieManager = LoginWebView.CoreWebView2.CookieManager;
+            var lines = await File.ReadAllLinesAsync(cookiesFilePath);
+            int count = 0;
+
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("#") || string.IsNullOrWhiteSpace(line)) continue;
+                var parts = line.Split('\t');
+                if (parts.Length >= 7)
+                {
+                    var domain = parts[0];
+                    var path = parts[2];
+                    var isSecure = parts[3].Equals("TRUE", StringComparison.OrdinalIgnoreCase);
+                    var name = parts[5];
+                    var val = parts[6];
+
+                    if (domain.Contains("spotify.com", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            var cleanDomain = domain.TrimStart('.');
+                            var cookie = cookieManager.CreateCookie(name, val, cleanDomain, path);
+                            cookie.IsSecure = isSecure;
+                            cookieManager.AddOrUpdateCookie(cookie);
+                            count++;
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            if (count > 0)
+            {
+                LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/");
+                return true;
+            }
+        }
+        catch { }
+
+        return false;
+    }
+
     private async void ExtractFromExternalBrowser_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -180,27 +228,39 @@ public partial class SpotifyLoginWindow : Window
                     StatusBadgeText.Text = "⏳ POŁĄCZENIE W TOKU...";
                     StatusNote.Text = $"Pobieranie sesji Spotify z {targetBrowser.ToUpperInvariant()}...";
 
-                    var (ok, msg, profile) = await AuthService.ExtractSpotifyCookiesWithQuickRestartAsync(targetBrowser, progress =>
+                    var (ok, msg, path) = await AuthService.ExtractSpotifyCookiesRawFileAsync(targetBrowser, progress =>
                     {
                         Dispatcher.Invoke(() => StatusNote.Text = progress);
                     });
 
-                    if (ok)
+                    if (ok && !string.IsNullOrEmpty(path))
                     {
-                        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-                        StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
-                        StatusNote.Text = $"✔ Sukces! Połączono jako {profile?.DisplayName ?? "Użytkownik"}.";
-                        MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {profile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
-                        DialogResult = true;
-                        Close();
-                        return;
+                        StatusNote.Text = "Weryfikowanie sesji w silniku przeglądarki...";
+                        var injected = await InjectCookiesIntoWebViewAsync(path);
+                        if (injected)
+                        {
+                            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+                            StatusBadgeText.Text = "⏳ LOGOWANIE...";
+                            StatusNote.Text = "Wczytywanie konta Spotify...";
+                            return;
+                        }
+
+                        // Fallback verification
+                        var (tokOk, tokMsg, profile) = await AuthService.GetSpotifyTokenFromCookiesFileAsync(path);
+                        if (tokOk)
+                        {
+                            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+                            StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
+                            MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {profile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
+                            DialogResult = true;
+                            Close();
+                            return;
+                        }
                     }
-                    else
-                    {
-                        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
-                        StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
-                        MessageBox.Show(msg, "Błąd pobierania sesji Spotify", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
+
+                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
+                    StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
+                    MessageBox.Show(msg, "Błąd pobierania sesji Spotify", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
 
                 StatusBadgeText.Text = "OCZEKIWANIE NA LOGOWANIE";
@@ -213,26 +273,38 @@ public partial class SpotifyLoginWindow : Window
             StatusBadgeText.Text = "⏳ POBIERANIE SESJI...";
             StatusNote.Text = $"Pobieranie danych Spotify z {targetBrowser.ToUpperInvariant()}...";
 
-            var (directOk, directMsg, directProfile) = await AuthService.ExtractSpotifyCookiesWithQuickRestartAsync(targetBrowser, progress =>
+            var (directOk, directMsg, directPath) = await AuthService.ExtractSpotifyCookiesRawFileAsync(targetBrowser, progress =>
             {
                 Dispatcher.Invoke(() => StatusNote.Text = progress);
             });
 
-            if (directOk)
+            if (directOk && !string.IsNullOrEmpty(directPath))
             {
-                StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-                StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
-                StatusNote.Text = $"✔ Sukces! Połączono jako {directProfile?.DisplayName ?? "Użytkownik"}.";
-                MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {directProfile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
-                DialogResult = true;
-                Close();
+                StatusNote.Text = "Weryfikowanie sesji w silniku przeglądarki...";
+                var injected = await InjectCookiesIntoWebViewAsync(directPath);
+                if (injected)
+                {
+                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+                    StatusBadgeText.Text = "⏳ LOGOWANIE...";
+                    StatusNote.Text = "Wczytywanie konta Spotify...";
+                    return;
+                }
+
+                var (tokOk, tokMsg, directProfile) = await AuthService.GetSpotifyTokenFromCookiesFileAsync(directPath);
+                if (tokOk)
+                {
+                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+                    StatusBadgeText.Text = "🟢 ZALOGOWANO POMYŚLNIE!";
+                    MessageBox.Show($"🎉 Sukces! Pomyślnie połączono Twoje konto Spotify z przeglądarki {targetBrowser.ToUpperInvariant()}!\nZalogowano jako: {directProfile?.DisplayName}", "Zalogowano do Spotify", MessageBoxButton.OK, MessageBoxImage.Information);
+                    DialogResult = true;
+                    Close();
+                    return;
+                }
             }
-            else
-            {
-                StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
-                StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
-                MessageBox.Show(directMsg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+
+            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonPink");
+            StatusBadgeText.Text = "⚠️ BŁĄD POBIERANIA";
+            MessageBox.Show(directMsg, "Informacja", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
@@ -253,9 +325,17 @@ public partial class SpotifyLoginWindow : Window
 
             if (ofd.ShowDialog(this) == true)
             {
-                StatusNote.Text = "Weryfikowanie pliku ciasteczek Spotify...";
-                var (ok, msg, profile) = await AuthService.GetSpotifyTokenFromCookiesFileAsync(ofd.FileName);
+                StatusNote.Text = "Wczytywanie pliku ciasteczek Spotify...";
+                var injected = await InjectCookiesIntoWebViewAsync(ofd.FileName);
+                if (injected)
+                {
+                    StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+                    StatusBadgeText.Text = "⏳ LOGOWANIE...";
+                    StatusNote.Text = "Wczytywanie konta Spotify z ciasteczek...";
+                    return;
+                }
 
+                var (ok, msg, profile) = await AuthService.GetSpotifyTokenFromCookiesFileAsync(ofd.FileName);
                 if (ok)
                 {
                     StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");

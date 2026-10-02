@@ -190,7 +190,7 @@ public static class AuthService
         return Path.Combine(ConfigService.GetDataDirectory(), "spotify_cookies.txt");
     }
 
-    public static async Task<(bool success, string message, SpotifyUserProfile? profile)> ExtractSpotifyCookiesWithQuickRestartAsync(
+    public static async Task<(bool success, string message, string? cookiesPath)> ExtractSpotifyCookiesRawFileAsync(
         string browser,
         Action<string>? progressCallback = null)
     {
@@ -281,23 +281,43 @@ public static class AuthService
                 catch { }
             }
 
-            if (File.Exists(targetCookiesPath))
+            if (File.Exists(targetCookiesPath) && new FileInfo(targetCookiesPath).Length > 100)
             {
-                progressCallback?.Invoke("Weryfikowanie sesji Spotify i logowanie...");
-                var (ok, msg, profile) = await GetSpotifyTokenFromCookiesFileAsync(targetCookiesPath);
-                if (ok)
-                {
-                    LogService.Success($"Pomyślnie połączono konto Spotify z przeglądarki {browser.ToUpperInvariant()} ({profile?.DisplayName})!", "SPOTIFY");
-                    return (true, $"Pomyślnie zalogowano do Spotify z przeglądarki {browser.ToUpperInvariant()}!", profile);
-                }
-                return (false, msg, null);
+                return (true, "Pobrano plik ciasteczek.", targetCookiesPath);
             }
 
-            return (false, $"Nie znaleziono ciasteczek Spotify w przeglądarce {browser.ToUpperInvariant()}. Upewnij się, że jesteś zalogowany na open.spotify.com w tej przeglądarce.", null);
+            return (false, $"Nie udało się wyodrębnić ciasteczek z przeglądarki {browser.ToUpperInvariant()}.", null);
         }
         catch (Exception ex)
         {
             return (false, $"Błąd podczas pobierania sesji: {ex.Message}", null);
+        }
+    }
+
+    public static async Task<(bool success, string message, SpotifyUserProfile? profile)> ExtractSpotifyCookiesWithQuickRestartAsync(
+        string browser,
+        Action<string>? progressCallback = null)
+    {
+        try
+        {
+            var (ok, msg, path) = await ExtractSpotifyCookiesRawFileAsync(browser, progressCallback);
+            if (!ok || string.IsNullOrEmpty(path))
+            {
+                return (false, msg, null);
+            }
+
+            progressCallback?.Invoke("Weryfikowanie sesji Spotify i logowanie...");
+            var (tokenOk, tokenMsg, profile) = await GetSpotifyTokenFromCookiesFileAsync(path);
+            if (tokenOk)
+            {
+                LogService.Success($"Pomyślnie połączono konto Spotify z przeglądarki {browser.ToUpperInvariant()} ({profile?.DisplayName})!", "SPOTIFY");
+                return (true, $"Pomyślnie zalogowano do Spotify z przeglądarki {browser.ToUpperInvariant()}!", profile);
+            }
+            return (false, tokenMsg, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Błąd: {ex.Message}", null);
         }
     }
 
