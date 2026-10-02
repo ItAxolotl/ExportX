@@ -56,6 +56,8 @@ public partial class SpotifyLoginWindow : Window
             LoginWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             LoginWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             LoginWebView.CoreWebView2.NavigationCompleted += LoginWebView_NavigationCompleted;
+            LoginWebView.CoreWebView2.SourceChanged += LoginWebView_SourceChanged;
+            LoginWebView.CoreWebView2.WebMessageReceived += LoginWebView_WebMessageReceived;
 
             LoadingOverlay.Visibility = Visibility.Collapsed;
             LoginWebView.CoreWebView2.Navigate("https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F");
@@ -69,6 +71,35 @@ public partial class SpotifyLoginWindow : Window
             FallbackPanel.Visibility = Visibility.Visible;
             LoadingOverlay.Visibility = Visibility.Visible;
         }
+    }
+
+    private async void LoginWebView_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
+    {
+        var url = LoginWebView.Source?.ToString() ?? "";
+        if (url.Contains("#access_token="))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(url, @"#access_token=([^&]+)");
+            if (match.Success)
+            {
+                var token = Uri.UnescapeDataString(match.Groups[1].Value);
+                await ProcessTokenAsync(token, 3600);
+                return;
+            }
+        }
+        await CheckSessionStatusAsync();
+    }
+
+    private async void LoginWebView_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var msg = e.TryGetWebMessageAsString();
+            if (!string.IsNullOrEmpty(msg) && msg.Contains("accessToken"))
+            {
+                await ProcessTokenJsonAsync(msg);
+            }
+        }
+        catch { }
     }
 
     private async void LoginWebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -88,127 +119,50 @@ public partial class SpotifyLoginWindow : Window
         _isChecking = true;
         try
         {
-            // Comprehensive Spotify Web token extraction script
-            const string script = @"(async () => {
-                // 1. Try DOM #session element
-                try {
-                    const el = document.getElementById('session');
-                    if (el && el.textContent) {
-                        const d = JSON.parse(el.textContent);
-                        if (d && d.accessToken && !d.isAnonymous) return JSON.stringify(d);
-                    }
-                } catch(e) {}
-
-                // 2. Try DOM #config element
-                try {
-                    const el = document.getElementById('config');
-                    if (el && el.textContent) {
-                        const d = JSON.parse(el.textContent);
-                        if (d && d.accessToken && !d.isAnonymous) return JSON.stringify(d);
-                    }
-                } catch(e) {}
-
-                // 3. Try fetch web player access token endpoint
+            // 1. PostMessage async fetch from page context
+            const string asyncPostScript = @"(async () => {
                 try {
                     const r = await fetch('/get_access_token?reason=transport&productType=web_player');
                     if (r.ok) {
-                        const text = await r.text();
-                        if (text && text.includes('accessToken')) return text;
-                    }
-                } catch(e) {}
-
-                // 4. Try absolute fetch
-                try {
-                    const r = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player');
-                    if (r.ok) {
-                        const text = await r.text();
-                        if (text && text.includes('accessToken')) return text;
-                    }
-                } catch(e) {}
-
-                // 5. Try sessionStorage and localStorage for Spotify Bearer token
-                try {
-                    for (let i = 0; i < sessionStorage.length; i++) {
-                        const k = sessionStorage.key(i);
-                        const v = sessionStorage.getItem(k);
-                        if (v && v.length > 50 && (v.startsWith('BQ') || v.includes('Bearer'))) {
-                            return JSON.stringify({ accessToken: v.replace('Bearer ', ''), isAnonymous: false });
-                        }
-                    }
-                    for (let i = 0; i < localStorage.length; i++) {
-                        const k = localStorage.key(i);
-                        const v = localStorage.getItem(k);
-                        if (v && v.length > 50 && (v.startsWith('BQ') || v.includes('Bearer'))) {
-                            return JSON.stringify({ accessToken: v.replace('Bearer ', ''), isAnonymous: false });
+                        const d = await r.json();
+                        if (d && d.accessToken && !d.isAnonymous) {
+                            window.chrome.webview.postMessage(JSON.stringify(d));
+                            return;
                         }
                     }
                 } catch(e) {}
 
+                try {
+                    const s = document.getElementById('session');
+                    if (s && s.textContent) {
+                        const d = JSON.parse(s.textContent);
+                        if (d && d.accessToken && !d.isAnonymous) {
+                            window.chrome.webview.postMessage(JSON.stringify(d));
+                            return;
+                        }
+                    }
+                } catch(e) {}
+            })()";
+
+            _ = LoginWebView.CoreWebView2.ExecuteScriptAsync(asyncPostScript);
+
+            // 2. Synchronous DOM inspection
+            const string syncScript = @"(() => {
+                try {
+                    const s = document.getElementById('session');
+                    if (s && s.textContent) return s.textContent;
+                } catch(e) {}
+                try {
+                    const c = document.getElementById('config');
+                    if (c && c.textContent) return c.textContent;
+                } catch(e) {}
                 return 'null';
             })()";
 
-            var resultJsonStr = await LoginWebView.CoreWebView2.ExecuteScriptAsync(script);
-            if (!string.IsNullOrWhiteSpace(resultJsonStr) && resultJsonStr != "null" && resultJsonStr != "\"null\"")
+            var syncResult = await LoginWebView.CoreWebView2.ExecuteScriptAsync(syncScript);
+            if (!string.IsNullOrWhiteSpace(syncResult) && syncResult != "null" && syncResult != "\"null\"")
             {
-                string jsonToParse = resultJsonStr.Trim();
-                try
-                {
-                    using var initialDoc = JsonDocument.Parse(jsonToParse);
-                    if (initialDoc.RootElement.ValueKind == JsonValueKind.String)
-                    {
-                        jsonToParse = initialDoc.RootElement.GetString() ?? jsonToParse;
-                    }
-                }
-                catch { }
-
-                if (!string.IsNullOrWhiteSpace(jsonToParse) && jsonToParse.Contains("accessToken"))
-                {
-                    using var doc = JsonDocument.Parse(jsonToParse);
-                    var root = doc.RootElement;
-
-                    bool isAnonymous = root.TryGetProperty("isAnonymous", out var anonProp) && anonProp.GetBoolean();
-                    var accessToken = root.TryGetProperty("accessToken", out var tokProp) ? tokProp.GetString() : null;
-                    int expiresIn = 3600;
-
-                    if (root.TryGetProperty("accessTokenExpirationTimestampMs", out var expProp))
-                    {
-                        var expMs = expProp.GetInt64();
-                        var totalSec = (expMs - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) / 1000;
-                        if (totalSec > 60) expiresIn = (int)totalSec;
-                    }
-
-                    if (!isAnonymous && !string.IsNullOrWhiteSpace(accessToken))
-                    {
-                        _isSuccess = true;
-                        _pollTimer.Stop();
-
-                        StatusBadgeText.Text = "✅ ZALOGOWANO POMYŚLNIE!";
-                        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-
-                        // Extract sp_dc cookie if available
-                        string? spDc = null;
-                        try
-                        {
-                            var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
-                            var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
-                            if (spCookie != null) spDc = spCookie.Value;
-                        }
-                        catch { }
-
-                        var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
-                        SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
-
-                        MessageBox.Show(
-                            $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nTwoje playlisty i polubione utwory są teraz dostępne.",
-                            "Logowanie Spotify udane",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-
-                        DialogResult = true;
-                        Close();
-                        return;
-                    }
-                }
+                await ProcessTokenJsonAsync(syncResult);
             }
         }
         catch (Exception ex)
@@ -219,6 +173,79 @@ public partial class SpotifyLoginWindow : Window
         {
             _isChecking = false;
         }
+    }
+
+    private async Task ProcessTokenJsonAsync(string rawJson)
+    {
+        if (_isSuccess) return;
+
+        try
+        {
+            string jsonToParse = rawJson.Trim();
+            try
+            {
+                using var initialDoc = JsonDocument.Parse(jsonToParse);
+                if (initialDoc.RootElement.ValueKind == JsonValueKind.String)
+                {
+                    jsonToParse = initialDoc.RootElement.GetString() ?? jsonToParse;
+                }
+            }
+            catch { }
+
+            if (!string.IsNullOrWhiteSpace(jsonToParse) && jsonToParse.Contains("accessToken"))
+            {
+                using var doc = JsonDocument.Parse(jsonToParse);
+                var root = doc.RootElement;
+
+                bool isAnonymous = root.TryGetProperty("isAnonymous", out var anonProp) && anonProp.GetBoolean();
+                var accessToken = root.TryGetProperty("accessToken", out var tokProp) ? tokProp.GetString() : null;
+                int expiresIn = 3600;
+
+                if (root.TryGetProperty("accessTokenExpirationTimestampMs", out var expProp))
+                {
+                    var expMs = expProp.GetInt64();
+                    var totalSec = (expMs - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) / 1000;
+                    if (totalSec > 60) expiresIn = (int)totalSec;
+                }
+
+                if (!isAnonymous && !string.IsNullOrWhiteSpace(accessToken))
+                {
+                    await ProcessTokenAsync(accessToken, expiresIn);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async Task ProcessTokenAsync(string accessToken, int expiresIn)
+    {
+        if (_isSuccess) return;
+        _isSuccess = true;
+        _pollTimer.Stop();
+
+        StatusBadgeText.Text = "✅ ZALOGOWANO POMYŚLNIE!";
+        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+
+        string? spDc = null;
+        try
+        {
+            var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
+            var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
+            if (spCookie != null) spDc = spCookie.Value;
+        }
+        catch { }
+
+        var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
+        SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
+
+        MessageBox.Show(
+            $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nTwoje playlisty i polubione utwory są teraz dostępne.",
+            "Logowanie Spotify udane",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+
+        DialogResult = true;
+        Close();
     }
 
     private async void SaveSessionFromWebView_Click(object sender, RoutedEventArgs e)
