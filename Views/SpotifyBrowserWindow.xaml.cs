@@ -286,6 +286,19 @@ public partial class SpotifyBrowserWindow : Window
                 if (match.Success)
                 {
                     var pId = match.Groups[1].Value;
+                    var existing = _playlists.FirstOrDefault(p => p.Id == pId);
+                    if (existing == null)
+                    {
+                        existing = new SpotifyPlaylistSummary
+                        {
+                            Id = pId,
+                            Name = $"Playlista ({pId})",
+                            OwnerName = "Spotify",
+                            IsPublic = true
+                        };
+                        _playlists.Insert(0, existing);
+                    }
+                    PlaylistsListBox.SelectedItem = existing;
                     await LoadTracksForPlaylistAsync(pId);
                     return;
                 }
@@ -300,18 +313,22 @@ public partial class SpotifyBrowserWindow : Window
             GlobalStatusText.Text = $"Wyszukiwanie playlist dla: {query}...";
 
             var results = await _spotifyUserService.SearchPlaylistsAsync(query, token);
-            _playlists.Clear();
-            foreach (var r in results)
+            if (results.Count > 0)
             {
-                _playlists.Add(r);
+                _playlists.Clear();
+                foreach (var r in results)
+                {
+                    _playlists.Add(r);
+                }
+                PlaylistsListBox.SelectedIndex = 0;
+                GlobalStatusText.Text = $"Znaleziono {results.Count} pasujących playlist.";
+            }
+            else
+            {
+                GlobalStatusText.Text = $"Brak wyników wyszukiwania dla '{query}'.";
             }
 
             PlaylistsLoadingOverlay.Visibility = Visibility.Collapsed;
-            GlobalStatusText.Text = $"Znaleziono {results.Count} pasujących playlist.";
-            if (_playlists.Count > 0)
-            {
-                PlaylistsListBox.SelectedIndex = 0;
-            }
         }
         else
         {
@@ -411,6 +428,26 @@ public partial class SpotifyBrowserWindow : Window
         }
         else
         {
+            var session = SpotifyAuthService.CurrentSession;
+            if (session.CachedPlaylists.Count == 0 && _playlists.Count == 0)
+            {
+                var res = MessageBox.Show(
+                    "Nie znaleziono jeszcze playlist w pamięci podręcznej.\n\nCzy chcesz otworzyć okno odtwarzacza Spotify, aby zsynchronizować Twoje playlisty?",
+                    "Synchronizacja playlist",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (res == MessageBoxResult.Yes)
+                {
+                    var loginWin = new SpotifyLoginWindow { Owner = this };
+                    if (loginWin.ShowDialog() == true)
+                    {
+                        UpdateAccountUi();
+                        _ = LoadUserPlaylistsAsync();
+                        return;
+                    }
+                }
+            }
             _ = LoadUserPlaylistsAsync();
         }
     }
