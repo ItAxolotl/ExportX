@@ -1,0 +1,67 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release ExportX
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download yt-dlp and FFmpeg dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "$env:APPDATA\ExportX\bin" -Force | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "$env:APPDATA\ExportX\bin\yt-dlp.exe"
+          
+          # Download static ffmpeg
+          $ffZip = "$env:TEMP\ffmpeg.zip"
+          Invoke-WebRequest -Uri "https://github.com/GyanD/codexffmpeg/releases/download/2026-09-28-git-c011e4001d/ffmpeg-2026-09-28-git-c011e4001d-essentials_build.zip" -OutFile $ffZip
+          Expand-Archive -Path $ffZip -DestinationPath "$env:TEMP\ffmpeg_extracted" -Force
+          $ffBin = (Get-ChildItem -Path "$env:TEMP\ffmpeg_extracted" -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1).DirectoryName
+          Copy-Item "$ffBin\ffmpeg.exe" "$env:APPDATA\ExportX\bin\ffmpeg.exe" -Force
+          Copy-Item "$ffBin\ffprobe.exe" "$env:APPDATA\ExportX\bin\ffprobe.exe" -Force
+
+      - name: Build Portable Package
+        shell: pwsh
+        run: |
+          .\build_portable.ps1
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "ExportX ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/ExportX.zip
+            dist/ExportX-Portable.zip
+            dist/ExportX-Portable/ExportX.exe
+          body: |
+            # 📓 ExportX ${{ github.ref_name }} // Release Notes
+
+            ### ⚡ Główne ulepszenia i poprawki:
+            - **🔑 Logowanie do YouTube / Google (Antigravity Style)**: Bezpośrednie otwieranie strony wyboru konta w Twojej domyślnej przeglądarce i automatyczne pobieranie sesji.
+            - **🔞 Naprawiono pobieranie utworów i wideo +18**: Rygorystyczna autoryzacja i poprawne przekazywanie ciasteczek sesyjnych YouTube.
+            - **🛠️ Poprawiono wyświetlanie list formatów i jakości**: Czytelne nazwy formatów (`🎵 MP3`, `🎬 MP4`) oraz jakości (`320 kbps`).
+            - **📦 Paczka Portable**: W pełni niezależna paczka ze wszystkimi zależnościami (`yt-dlp`, `ffmpeg`) w pliku `ExportX.zip`.
+
+            ---
+            *Pobierz `ExportX.zip`, rozpakuj i uruchom `ExportX.exe`!*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

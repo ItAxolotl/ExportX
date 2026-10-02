@@ -83,9 +83,14 @@ if (Test-Path $absZip) {
 
 & tar.exe -acf "$absZip" -C "$absDist" .
 
+# Also create ExportX.zip as standard release package
+$exportxZip = [System.IO.Path]::GetFullPath(".\dist\ExportX.zip")
+Copy-Item "$absZip" "$exportxZip" -Force
+
 Write-Host ""
 Write-Host "=======================================================" -ForegroundColor Cyan
-Write-Host "  SUKCES! Gotowa paczka przenosna:" -ForegroundColor Yellow
+Write-Host "  SUKCES! Gotowe paczki przenosne:" -ForegroundColor Yellow
 Write-Host "  - Folder: $dist" -ForegroundColor White
 Write-Host "  - Archiwum ZIP: $zip" -ForegroundColor White
+Write-Host "  - Glowny ZIP: $exportxZip" -ForegroundColor White
 Write-Host "=======================================================" -ForegroundColor Cyan
