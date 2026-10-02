@@ -20,9 +20,93 @@ public class PlaylistParserService
         Timeout = TimeSpan.FromSeconds(10)
     };
 
+    private static string? _cachedSpotifyToken;
+    private static DateTime _spotifyTokenExpiry = DateTime.MinValue;
+
     static PlaylistParserService()
     {
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    }
+
+    public static async Task<string?> GetSpotifyAccessTokenAsync(string? clientId = null, string? clientSecret = null)
+    {
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+        {
+            var config = new ConfigService().Config;
+            clientId = config.SpotifyClientId;
+            clientSecret = config.SpotifyClientSecret;
+        }
+
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(_cachedSpotifyToken) && DateTime.UtcNow < _spotifyTokenExpiry)
+        {
+            return _cachedSpotifyToken;
+        }
+
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://accounts.spotify.com/api/token");
+            var authHeaderVal = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId.Trim()}:{clientSecret.Trim()}"));
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authHeaderVal);
+            req.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type", "client_credentials")
+            });
+
+            var resp = await _httpClient.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("access_token", out var tokProp))
+                {
+                    _cachedSpotifyToken = tokProp.GetString();
+                    int expiresIn = doc.RootElement.TryGetProperty("expires_in", out var expProp) ? expProp.GetInt32() : 3600;
+                    _spotifyTokenExpiry = DateTime.UtcNow.AddSeconds(expiresIn - 60);
+                    return _cachedSpotifyToken;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            LogService.Warn($"Błąd autoryzacji Spotify Client Credentials: {ex.Message}", "SPOTIFY");
+        }
+
+        return null;
+    }
+
+    public static async Task<(bool Success, string Message)> TestSpotifyCredentialsAsync(string clientId, string clientSecret)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://accounts.spotify.com/api/token");
+            var authHeaderVal = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{clientId.Trim()}:{clientSecret.Trim()}"));
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authHeaderVal);
+            req.Content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type", "client_credentials")
+            });
+
+            var resp = await _httpClient.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("access_token", out var tokProp) && !string.IsNullOrEmpty(tokProp.GetString()))
+                {
+                    return (true, "Połączenie z API Spotify udane! Obsługa nielimitowanych playlist (500+ utworów) aktywna.");
+                }
+            }
+            return (false, $"Błąd uwierzytelnienia Spotify (Kod: {(int)resp.StatusCode}). Sprawdź Client ID i Client Secret.");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Błąd połączenia: {ex.Message}");
+        }
     }
 
     public async Task<List<ParsedTrackInfo>> ParseInputAsync(string input, IProgress<string>? progress = null)
@@ -263,174 +347,37 @@ public class PlaylistParserService
                 var type = match.Groups[1].Value.ToLowerInvariant();
                 var id = match.Groups[2].Value;
 
-                // 1. Try Spotify Web API via anonymous public token
-                try
+                // 1. Try with Spotify Client Credentials (supports 500+ and 1000+ songs pagination!)
+                var token = await GetSpotifyAccessTokenAsync();
+
+                if (!string.IsNullOrEmpty(token))
                 {
-                    var tokenReq = new HttpRequestMessage(HttpMethod.Get, "https://open.spotify.com/get_access_token");
-                    var tokenResp = await _httpClient.SendAsync(tokenReq);
-                    if (tokenResp.IsSuccessStatusCode)
+                    if (type == "playlist")
                     {
-                        var tokenJson = await tokenResp.Content.ReadAsStringAsync();
-                        using var tokenDoc = JsonDocument.Parse(tokenJson);
-                        if (tokenDoc.RootElement.TryGetProperty("accessToken", out var tokProp))
+                        int offset = 0;
+                        bool hasMore = true;
+
+                        while (hasMore)
                         {
-                            var token = tokProp.GetString();
-                            if (!string.IsNullOrEmpty(token))
+                            var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/playlists/{id}/tracks?limit=100&offset={offset}");
+                            apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                            var apiResp = await _httpClient.SendAsync(apiReq);
+                            if (!apiResp.IsSuccessStatusCode) break;
+
+                            var apiJson = await apiResp.Content.ReadAsStringAsync();
+                            using var apiDoc = JsonDocument.Parse(apiJson);
+
+                            if (apiDoc.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
                             {
-                                if (type == "playlist")
+                                int batchCount = 0;
+                                foreach (var item in items.EnumerateArray())
                                 {
-                                    int offset = 0;
-                                    bool hasMore = true;
-
-                                    while (hasMore)
+                                    if (item.TryGetProperty("track", out var track) && track.ValueKind == JsonValueKind.Object)
                                     {
-                                        var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/playlists/{id}/tracks?limit=100&offset={offset}");
-                                        apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                                        var apiResp = await _httpClient.SendAsync(apiReq);
-                                        if (!apiResp.IsSuccessStatusCode) break;
-
-                                        var apiJson = await apiResp.Content.ReadAsStringAsync();
-                                        using var apiDoc = JsonDocument.Parse(apiJson);
-
-                                        if (apiDoc.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
-                                        {
-                                            int batchCount = 0;
-                                            foreach (var item in items.EnumerateArray())
-                                            {
-                                                if (item.TryGetProperty("track", out var track) && track.ValueKind == JsonValueKind.Object)
-                                                {
-                                                    var name = track.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
-                                                    var artistList = new List<string>();
-                                                    if (track.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
-                                                    {
-                                                        foreach (var a in artists.EnumerateArray())
-                                                        {
-                                                            if (a.TryGetProperty("name", out var an))
-                                                            {
-                                                                var artistName = an.GetString();
-                                                                if (!string.IsNullOrWhiteSpace(artistName)) artistList.Add(artistName);
-                                                            }
-                                                        }
-                                                    }
-
-                                                    if (!string.IsNullOrWhiteSpace(name))
-                                                    {
-                                                        var (dispArt, searchArt) = FileImportService.CleanArtistString(string.Join(";", artistList));
-                                                        var query = !string.IsNullOrWhiteSpace(searchArt) ? $"{searchArt} - {name}" : name;
-
-                                                        list.Add(new ParsedTrackInfo
-                                                        {
-                                                            QueryOrUrl = query,
-                                                            Title = name,
-                                                            Artist = dispArt
-                                                        });
-                                                        batchCount++;
-                                                    }
-                                                }
-                                            }
-
-                                            progress?.Report($"Wczytano ze Spotify: {list.Count} utworów...");
-
-                                            if (apiDoc.RootElement.TryGetProperty("next", out var nextProp) && nextProp.ValueKind != JsonValueKind.Null && batchCount > 0)
-                                            {
-                                                offset += batchCount;
-                                            }
-                                            else
-                                            {
-                                                hasMore = false;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            hasMore = false;
-                                        }
-                                    }
-
-                                    if (list.Count > 0) return list;
-                                }
-                                else if (type == "album")
-                                {
-                                    int offset = 0;
-                                    bool hasMore = true;
-
-                                    while (hasMore)
-                                    {
-                                        var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/albums/{id}/tracks?limit=50&offset={offset}");
-                                        apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                                        var apiResp = await _httpClient.SendAsync(apiReq);
-                                        if (!apiResp.IsSuccessStatusCode) break;
-
-                                        var apiJson = await apiResp.Content.ReadAsStringAsync();
-                                        using var apiDoc = JsonDocument.Parse(apiJson);
-
-                                        if (apiDoc.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
-                                        {
-                                            int batchCount = 0;
-                                            foreach (var track in items.EnumerateArray())
-                                            {
-                                                var name = track.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
-                                                var artistList = new List<string>();
-                                                if (track.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
-                                                {
-                                                    foreach (var a in artists.EnumerateArray())
-                                                    {
-                                                        if (a.TryGetProperty("name", out var an))
-                                                        {
-                                                            var artistName = an.GetString();
-                                                            if (!string.IsNullOrWhiteSpace(artistName)) artistList.Add(artistName);
-                                                        }
-                                                    }
-                                                }
-
-                                                if (!string.IsNullOrWhiteSpace(name))
-                                                {
-                                                    var (dispArt, searchArt) = FileImportService.CleanArtistString(string.Join(";", artistList));
-                                                    var query = !string.IsNullOrWhiteSpace(searchArt) ? $"{searchArt} - {name}" : name;
-
-                                                    list.Add(new ParsedTrackInfo
-                                                    {
-                                                        QueryOrUrl = query,
-                                                        Title = name,
-                                                        Artist = dispArt
-                                                    });
-                                                    batchCount++;
-                                                }
-                                            }
-
-                                            progress?.Report($"Wczytano z albumu Spotify: {list.Count} utworów...");
-
-                                            if (apiDoc.RootElement.TryGetProperty("next", out var nextProp) && nextProp.ValueKind != JsonValueKind.Null && batchCount > 0)
-                                            {
-                                                offset += batchCount;
-                                            }
-                                            else
-                                            {
-                                                hasMore = false;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            hasMore = false;
-                                        }
-                                    }
-
-                                    if (list.Count > 0) return list;
-                                }
-                                else if (type == "track")
-                                {
-                                    var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/tracks/{id}");
-                                    apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                                    var apiResp = await _httpClient.SendAsync(apiReq);
-                                    if (apiResp.IsSuccessStatusCode)
-                                    {
-                                        var apiJson = await apiResp.Content.ReadAsStringAsync();
-                                        using var apiDoc = JsonDocument.Parse(apiJson);
-                                        var name = apiDoc.RootElement.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
+                                        var name = track.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
                                         var artistList = new List<string>();
-                                        if (apiDoc.RootElement.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
+                                        if (track.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
                                         {
                                             foreach (var a in artists.EnumerateArray())
                                             {
@@ -453,15 +400,143 @@ public class PlaylistParserService
                                                 Title = name,
                                                 Artist = dispArt
                                             });
-                                            return list;
+                                            batchCount++;
                                         }
                                     }
                                 }
+
+                                progress?.Report($"Wczytano ze Spotify API: {list.Count} utworów...");
+
+                                if (apiDoc.RootElement.TryGetProperty("next", out var nextProp) && nextProp.ValueKind != JsonValueKind.Null && batchCount > 0)
+                                {
+                                    offset += batchCount;
+                                }
+                                else
+                                {
+                                    hasMore = false;
+                                }
+                            }
+                            else
+                            {
+                                hasMore = false;
+                            }
+                        }
+
+                        if (list.Count > 0)
+                        {
+                            LogService.Success($"Wczytano {list.Count} utworów z playlisty Spotify przez API.", "SPOTIFY");
+                            return list;
+                        }
+                    }
+                    else if (type == "album")
+                    {
+                        int offset = 0;
+                        bool hasMore = true;
+
+                        while (hasMore)
+                        {
+                            var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/albums/{id}/tracks?limit=50&offset={offset}");
+                            apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                            var apiResp = await _httpClient.SendAsync(apiReq);
+                            if (!apiResp.IsSuccessStatusCode) break;
+
+                            var apiJson = await apiResp.Content.ReadAsStringAsync();
+                            using var apiDoc = JsonDocument.Parse(apiJson);
+
+                            if (apiDoc.RootElement.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                            {
+                                int batchCount = 0;
+                                foreach (var track in items.EnumerateArray())
+                                {
+                                    var name = track.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
+                                    var artistList = new List<string>();
+                                    if (track.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
+                                    {
+                                        foreach (var a in artists.EnumerateArray())
+                                        {
+                                            if (a.TryGetProperty("name", out var an))
+                                            {
+                                                var artistName = an.GetString();
+                                                if (!string.IsNullOrWhiteSpace(artistName)) artistList.Add(artistName);
+                                            }
+                                        }
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(name))
+                                    {
+                                        var (dispArt, searchArt) = FileImportService.CleanArtistString(string.Join(";", artistList));
+                                        var query = !string.IsNullOrWhiteSpace(searchArt) ? $"{searchArt} - {name}" : name;
+
+                                        list.Add(new ParsedTrackInfo
+                                        {
+                                            QueryOrUrl = query,
+                                            Title = name,
+                                            Artist = dispArt
+                                        });
+                                        batchCount++;
+                                    }
+                                }
+
+                                progress?.Report($"Wczytano z albumu Spotify API: {list.Count} utworów...");
+
+                                if (apiDoc.RootElement.TryGetProperty("next", out var nextProp) && nextProp.ValueKind != JsonValueKind.Null && batchCount > 0)
+                                {
+                                    offset += batchCount;
+                                }
+                                else
+                                {
+                                    hasMore = false;
+                                }
+                            }
+                            else
+                            {
+                                hasMore = false;
+                            }
+                        }
+
+                        if (list.Count > 0) return list;
+                    }
+                    else if (type == "track")
+                    {
+                        var apiReq = new HttpRequestMessage(HttpMethod.Get, $"https://api.spotify.com/v1/tracks/{id}");
+                        apiReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                        var apiResp = await _httpClient.SendAsync(apiReq);
+                        if (apiResp.IsSuccessStatusCode)
+                        {
+                            var apiJson = await apiResp.Content.ReadAsStringAsync();
+                            using var apiDoc = JsonDocument.Parse(apiJson);
+                            var name = apiDoc.RootElement.TryGetProperty("name", out var np) ? np.GetString() ?? "" : "";
+                            var artistList = new List<string>();
+                            if (apiDoc.RootElement.TryGetProperty("artists", out var artists) && artists.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var a in artists.EnumerateArray())
+                                {
+                                    if (a.TryGetProperty("name", out var an))
+                                    {
+                                        var artistName = an.GetString();
+                                        if (!string.IsNullOrWhiteSpace(artistName)) artistList.Add(artistName);
+                                    }
+                                }
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(name))
+                            {
+                                var (dispArt, searchArt) = FileImportService.CleanArtistString(string.Join(";", artistList));
+                                var query = !string.IsNullOrWhiteSpace(searchArt) ? $"{searchArt} - {name}" : name;
+
+                                list.Add(new ParsedTrackInfo
+                                {
+                                    QueryOrUrl = query,
+                                    Title = name,
+                                    Artist = dispArt
+                                });
+                                return list;
                             }
                         }
                     }
                 }
-                catch { }
             }
 
             // 2. Fallback: Spotify oEmbed (for single tracks)
@@ -543,10 +618,15 @@ public class PlaylistParserService
                     }
                 }
             }
+
+            if (list.Count > 0)
+            {
+                LogService.Info($"Wczytano {list.Count} utworów z publicznego widoku Spotify.", "SPOTIFY");
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignored
+            LogService.Warn($"Błąd pobierania danych ze Spotify: {ex.Message}", "SPOTIFY");
         }
 
         if (list.Count == 0)

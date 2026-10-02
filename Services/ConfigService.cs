@@ -14,6 +14,12 @@ public class AppConfig
     public bool EnableAnti403 { get; set; } = true;
     public bool EmbedThumbnail { get; set; } = true;
     public bool EmbedMetadata { get; set; } = true;
+    public bool ClipboardMonitor { get; set; } = true;
+    public bool OrganizeInFolders { get; set; } = false;
+    public bool NormalizeVolume { get; set; } = false;
+    public bool DownloadLyrics { get; set; } = false;
+    public string SpotifyClientId { get; set; } = string.Empty;
+    public string SpotifyClientSecret { get; set; } = string.Empty;
 }
 
 public class ConfigService

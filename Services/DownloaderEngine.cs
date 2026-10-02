@@ -37,7 +37,10 @@ public class DownloaderEngine
         bool enableAnti403,
         bool autoSkipExisting,
         bool embedThumbnail,
-        bool embedMetadata)
+        bool embedMetadata,
+        bool organizeInFolders,
+        bool normalizeVolume,
+        bool downloadLyrics)
     {
         if (_isRunning) return;
 
@@ -82,7 +85,7 @@ public class DownloaderEngine
                     return;
                 }
 
-                await ProcessItemWithFallbacksAsync(item, outputDirectory, enableAnti403, autoSkipExisting, embedThumbnail, embedMetadata, ytDlpPath, ffmpegDir, token);
+                await ProcessItemWithFallbacksAsync(item, outputDirectory, enableAnti403, autoSkipExisting, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, ytDlpPath, ffmpegDir, token);
             }
             catch (OperationCanceledException)
             {
@@ -127,6 +130,9 @@ public class DownloaderEngine
         bool autoSkipExisting,
         bool embedThumbnail,
         bool embedMetadata,
+        bool organizeInFolders,
+        bool normalizeVolume,
+        bool downloadLyrics,
         string ytDlpPath,
         string? ffmpegDir,
         CancellationToken ct)
@@ -165,7 +171,7 @@ public class DownloaderEngine
             var clientName = string.IsNullOrEmpty(clientArg) ? "Domyślny (Najwyższa jakość)" : clientArg;
             LogService.Process($"#{item.Index} [{item.SelectedFormat}] Start pobierania: \"{item.Title}\" (Klient: {clientName}, próba {i + 1}/{clientStrategies.Length})...", "DOWNLOADER");
 
-            var (isOk, err) = await ExecuteYtDlpAsync(item, outputDirectory, clientArg, embedThumbnail, embedMetadata, ytDlpPath, ffmpegDir, ct);
+            var (isOk, err) = await ExecuteYtDlpAsync(item, outputDirectory, clientArg, embedThumbnail, embedMetadata, organizeInFolders, normalizeVolume, downloadLyrics, ytDlpPath, ffmpegDir, ct);
 
             if (isOk)
             {
@@ -201,6 +207,9 @@ public class DownloaderEngine
         string clientStrategy,
         bool embedThumbnail,
         bool embedMetadata,
+        bool organizeInFolders,
+        bool normalizeVolume,
+        bool downloadLyrics,
         string ytDlpPath,
         string? ffmpegDir,
         CancellationToken ct)
@@ -215,7 +224,9 @@ public class DownloaderEngine
 
         var ext = item.SelectedFormat.GetExtension();
         var bitrate = item.SelectedBitrate.ToKbpsString();
-        var outTemplate = "%(title)s [%(id)s].%(ext)s";
+        var outTemplate = organizeInFolders
+            ? "%(artist,uploader)s/%(album,title)s/%(title)s [%(id)s].%(ext)s"
+            : "%(title)s [%(id)s].%(ext)s";
 
         var psi = new ProcessStartInfo
         {
@@ -291,6 +302,20 @@ public class DownloaderEngine
         if (embedThumbnail)
         {
             psi.ArgumentList.Add("--embed-thumbnail");
+        }
+
+        if (downloadLyrics)
+        {
+            psi.ArgumentList.Add("--write-subs");
+            psi.ArgumentList.Add("--sub-langs");
+            psi.ArgumentList.Add("all,-live_chat");
+            psi.ArgumentList.Add("--embed-subs");
+        }
+
+        if (normalizeVolume && !item.SelectedFormat.IsVideo())
+        {
+            psi.ArgumentList.Add("--postprocessor-args");
+            psi.ArgumentList.Add("ExtractAudio:-af loudnorm=I=-14:LRA=7:TP=-1.5");
         }
 
         if (item.SelectedFormat.IsVideo())

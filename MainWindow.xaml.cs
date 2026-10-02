@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private readonly FileImportService _importService = new();
     private readonly DownloaderEngine _downloaderEngine = new();
     private readonly ObservableCollection<DownloadItem> _items = new();
+    private readonly System.Windows.Threading.DispatcherTimer _clipboardTimer = new();
+    private string _lastClipboardContent = string.Empty;
     private bool _isLogsVisible = false;
     private bool _isInitializing = true;
 
@@ -46,6 +48,10 @@ public partial class MainWindow : Window
         _downloaderEngine.ItemStatusChanged += OnItemStatusChanged;
         _downloaderEngine.QueueFinished += OnQueueFinished;
         LogService.LogAdded += OnLogAdded;
+
+        _clipboardTimer.Interval = TimeSpan.FromSeconds(1.0);
+        _clipboardTimer.Tick += ClipboardTimer_Tick;
+        _clipboardTimer.Start();
 
         InitializeUI();
     }
@@ -99,16 +105,21 @@ public partial class MainWindow : Window
         ThreadsComboBox.SelectedItem = Math.Clamp(config.MaxParallelDownloads, 1, 16);
 
         // Checkboxes
+        ClipboardMonitorCheckBox.IsChecked = config.ClipboardMonitor;
         Anti403CheckBox.IsChecked = config.EnableAnti403;
         AutoSkipCheckBox.IsChecked = config.AutoSkipExisting;
         EmbedThumbnailsCheckBox.IsChecked = config.EmbedThumbnail;
         EmbedMetadataCheckBox.IsChecked = config.EmbedMetadata;
+        OrganizeInFoldersCheckBox.IsChecked = config.OrganizeInFolders;
+        NormalizeVolumeCheckBox.IsChecked = config.NormalizeVolume;
+        DownloadLyricsCheckBox.IsChecked = config.DownloadLyrics;
 
         _isInitializing = false;
         SaveCurrentConfig();
 
         UpdateStats();
         UpdateYouTubeLoginButtonState();
+        UpdateSpotifyButtonState();
         if (ConfigService.IsPortableMode)
         {
             this.Title += " [PORTABLE]";
@@ -126,6 +137,31 @@ public partial class MainWindow : Window
                 Dispatcher.InvokeAsync(() => GlobalStatusInfo.Text = msg);
             });
         });
+    }
+
+    private void UpdateSpotifyButtonState()
+    {
+        var config = _configService.Config;
+        if (!string.IsNullOrWhiteSpace(config.SpotifyClientId) && !string.IsNullOrWhiteSpace(config.SpotifyClientSecret))
+        {
+            SpotifyApiBtn.Content = "🟢 SPOTIFY (500+ OK)";
+            SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+            SpotifyApiBtn.ToolTip = "Klucze Spotify API są skonfigurowane. Pobieranie nielimitowanych playlist 500+ aktywne!";
+        }
+        else
+        {
+            SpotifyApiBtn.Content = "🟢 SPOTIFY (500+)";
+            SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonYellow");
+            SpotifyApiBtn.ToolTip = "Kliknij, aby podać darmowy klucz Spotify API i pobierać pełne playlisty (500+ utworów)";
+        }
+    }
+
+    private void SpotifyApi_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new Views.SpotifySettingsWindow { Owner = this };
+        win.ShowDialog();
+        _configService.Load();
+        UpdateSpotifyButtonState();
     }
 
     private void UpdateYouTubeLoginButtonState()
@@ -250,6 +286,64 @@ public partial class MainWindow : Window
         GlobalStatusInfo.Text = "Gotowy do działania.";
     }
 
+    private void OptionCheckbox_Changed(object sender, RoutedEventArgs e)
+    {
+        SaveCurrentConfig();
+    }
+
+    private void ClipboardTimer_Tick(object? sender, EventArgs e)
+    {
+        if (ClipboardMonitorCheckBox.IsChecked != true)
+        {
+            ClipboardBanner.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        try
+        {
+            if (Clipboard.ContainsText())
+            {
+                var text = Clipboard.GetText().Trim();
+                if (!string.IsNullOrWhiteSpace(text) && text != _lastClipboardContent)
+                {
+                    if (PlaylistParserService.IsSpotifyUrl(text) || PlaylistParserService.IsYouTubeVideo(text) || PlaylistParserService.IsYouTubePlaylist(text))
+                    {
+                        _lastClipboardContent = text;
+                        ClipboardLinkText.Text = text;
+                        ClipboardBanner.Visibility = Visibility.Visible;
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async void ClipboardAdd_Click(object sender, RoutedEventArgs e)
+    {
+        var link = ClipboardLinkText.Text;
+        ClipboardBanner.Visibility = Visibility.Collapsed;
+        if (!string.IsNullOrWhiteSpace(link))
+        {
+            await AddQueryOrUrlAsync(link);
+        }
+    }
+
+    private async void ClipboardAddAndStart_Click(object sender, RoutedEventArgs e)
+    {
+        var link = ClipboardLinkText.Text;
+        ClipboardBanner.Visibility = Visibility.Collapsed;
+        if (!string.IsNullOrWhiteSpace(link))
+        {
+            await AddQueryOrUrlAsync(link);
+            StartDownload_Click(sender, e);
+        }
+    }
+
+    private void ClipboardDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        ClipboardBanner.Visibility = Visibility.Collapsed;
+    }
+
     private void SaveCurrentConfig()
     {
         if (_isInitializing) return;
@@ -261,10 +355,14 @@ public partial class MainWindow : Window
         if (DefaultFormatComboBox.SelectedValue is DownloadFormat fmt) config.DefaultFormat = fmt;
         if (DefaultBitrateComboBox.SelectedValue is AudioBitrate br) config.DefaultBitrate = br;
         if (ThreadsComboBox.SelectedItem is int threads) config.MaxParallelDownloads = threads;
+        config.ClipboardMonitor = ClipboardMonitorCheckBox.IsChecked == true;
         config.EnableAnti403 = Anti403CheckBox.IsChecked == true;
         config.AutoSkipExisting = AutoSkipCheckBox.IsChecked == true;
         config.EmbedThumbnail = EmbedThumbnailsCheckBox.IsChecked == true;
         config.EmbedMetadata = EmbedMetadataCheckBox.IsChecked == true;
+        config.OrganizeInFolders = OrganizeInFoldersCheckBox.IsChecked == true;
+        config.NormalizeVolume = NormalizeVolumeCheckBox.IsChecked == true;
+        config.DownloadLyrics = DownloadLyricsCheckBox.IsChecked == true;
 
         _configService.Save();
     }
@@ -530,6 +628,9 @@ public partial class MainWindow : Window
         bool autoSkip = AutoSkipCheckBox.IsChecked == true;
         bool embedThumb = EmbedThumbnailsCheckBox.IsChecked == true;
         bool embedMeta = EmbedMetadataCheckBox.IsChecked == true;
+        bool organizeInFolders = OrganizeInFoldersCheckBox.IsChecked == true;
+        bool normalizeVolume = NormalizeVolumeCheckBox.IsChecked == true;
+        bool downloadLyrics = DownloadLyricsCheckBox.IsChecked == true;
 
         StartButton.IsEnabled = false;
         StopButton.IsEnabled = true;
@@ -544,7 +645,10 @@ public partial class MainWindow : Window
             anti403,
             autoSkip,
             embedThumb,
-            embedMeta
+            embedMeta,
+            organizeInFolders,
+            normalizeVolume,
+            downloadLyrics
         );
     }
 

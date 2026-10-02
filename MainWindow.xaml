@@ -134,8 +134,18 @@
                 </Grid>
             </Border>
 
-            <!-- Header Buttons (YouTube Session & Engine Update) -->
+            <!-- Header Buttons (Spotify API, YouTube Session & Engine Update) -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="SpotifyApiBtn"
+                        Content="🟢 SPOTIFY (500+)" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushNeonLime}"
+                        FontSize="11"
+                        Padding="10,5"
+                        Margin="0,0,6,0"
+                        Click="SpotifyApi_Click"
+                        ToolTip="Konfiguracja klucza Spotify API do pobierania gigantycznych playlist (500+ utworów)" />
+
                 <Button x:Name="YouTubeLoginBtn"
                         Content="🔑 KONTO YOUTUBE" 
                         Style="{StaticResource BrutalistButton}" 
@@ -300,28 +310,72 @@
 
                 <!-- Options Checkboxes -->
                 <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <CheckBox x:Name="Anti403CheckBox" 
-                              Content="🛡 ANTI-403 (Client Fallbacks: Android/TV/iOS)" 
+                    <CheckBox x:Name="ClipboardMonitorCheckBox" 
+                              Content="📋 MONITOR SCHOWKA" 
                               Style="{StaticResource BrutalistCheckBox}" 
                               IsChecked="True" 
-                              Margin="0,0,16,0" />
+                              Margin="0,0,14,0" 
+                              ToolTip="Automatycznie wykrywa skopiowane linki YouTube / Spotify i proponuje ich szybkie dodanie"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
+
+                    <CheckBox x:Name="Anti403CheckBox" 
+                              Content="🛡 ANTI-403 (Client Fallbacks)" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="True" 
+                              Margin="0,0,14,0"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
 
                     <CheckBox x:Name="AutoSkipCheckBox" 
                               Content="⏭ POMIJAJ JUŻ POBRANE" 
                               Style="{StaticResource BrutalistCheckBox}" 
                               IsChecked="True" 
-                              Margin="0,0,16,0" />
+                              Margin="0,0,14,0"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
 
                     <CheckBox x:Name="EmbedThumbnailsCheckBox" 
-                              Content="🖼 OSADZAJ OKŁADKI" 
+                              Content="🖼 OKŁADKI" 
                               Style="{StaticResource BrutalistCheckBox}" 
                               IsChecked="True" 
-                              Margin="0,0,16,0" />
+                              Margin="0,0,14,0"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
 
                     <CheckBox x:Name="EmbedMetadataCheckBox" 
-                              Content="🏷 TAGI METADANYCH ID3" 
+                              Content="🏷 TAGI ID3" 
                               Style="{StaticResource BrutalistCheckBox}" 
-                              IsChecked="True" />
+                              IsChecked="True" 
+                              Margin="0,0,14,0"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
+
+                    <CheckBox x:Name="OrganizeInFoldersCheckBox" 
+                              Content="📁 FOLDERY (Autor/Album)" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="False" 
+                              Margin="0,0,14,0" 
+                              ToolTip="Sortuj pobrane utwory w podfoldery: [Wykonawca]/[Album]/[Tytuł].mp3"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
+
+                    <CheckBox x:Name="NormalizeVolumeCheckBox" 
+                              Content="🔊 GŁOŚNOŚĆ (LOUDNORM)" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="False" 
+                              Margin="0,0,14,0" 
+                              ToolTip="Wyrównuje poziom głośności wszystkich utworów (EBU R128), aby miały spójną dynamikę"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
+
+                    <CheckBox x:Name="DownloadLyricsCheckBox" 
+                              Content="📝 TEKSTY (.LRC)" 
+                              Style="{StaticResource BrutalistCheckBox}" 
+                              IsChecked="False" 
+                              ToolTip="Pobiera i osadza napisy/teksty utworu"
+                              Checked="OptionCheckbox_Changed"
+                              Unchecked="OptionCheckbox_Changed" />
                 </WrapPanel>
             </Grid>
         </Border>
@@ -338,6 +392,56 @@
                     <TextBlock Text="Kolejka pobierania jest pusta" FontWeight="Black" FontSize="16" Foreground="#666666" HorizontalAlignment="Center" />
                     <TextBlock Text="Wklej link YouTube / Spotify powyżej lub kliknij 📋 WKLEJ LISTĘ" FontSize="12" FontWeight="SemiBold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,4,0,0" />
                 </StackPanel>
+
+                <!-- ================= CLIPBOARD DETECTOR BANNER ================= -->
+                <Border x:Name="ClipboardBanner" 
+                        VerticalAlignment="Top" 
+                        Panel.ZIndex="999"
+                        Style="{StaticResource BrutalistCard}" 
+                        Background="{StaticResource BrushNeonYellow}" 
+                        Padding="10,6" 
+                        Margin="10,10,10,0"
+                        Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="📋 WYKRYTO LINK W SCHOWKU:" FontWeight="Black" FontSize="11" Foreground="{StaticResource BrushBlackBorder}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="1" x:Name="ClipboardLinkText" Text="https://..." FontWeight="Bold" FontSize="11" Foreground="#111827" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                        <Button Grid.Column="2" 
+                                Content="➕ DODAJ DO KOLEJKI" 
+                                Style="{StaticResource CyanButton}" 
+                                FontSize="11" 
+                                FontWeight="Black" 
+                                Padding="10,4" 
+                                Margin="0,0,6,0" 
+                                Click="ClipboardAdd_Click" />
+
+                        <Button Grid.Column="3" 
+                                Content="▶ DODAJ I POBIERZ" 
+                                Style="{StaticResource GreenStartButton}" 
+                                FontSize="11" 
+                                FontWeight="Black" 
+                                Padding="10,4" 
+                                Margin="0,0,6,0" 
+                                Click="ClipboardAddAndStart_Click" />
+
+                        <Button Grid.Column="4" 
+                                Content="✖" 
+                                Style="{StaticResource BrutalistButton}" 
+                                Background="{StaticResource BrushPaperWhite}" 
+                                FontSize="11" 
+                                FontWeight="Black" 
+                                Padding="6,3" 
+                                Click="ClipboardDismiss_Click" />
+                    </Grid>
+                </Border>
 
                 <!-- The DataGrid -->
                 <DataGrid x:Name="QueueDataGrid" 
