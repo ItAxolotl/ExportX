@@ -151,15 +151,12 @@ public class DownloaderEngine
         }
 
         // 2. Client fallback strategies for YouTube Anti-403 & Quality
-        // When session cookies are present: skip android/ios (which don't accept cookies) and use web/desktop with JS runtime.
-        // For video (MP4): start with default/web/tv which support 4K/1440p/1080p60.
-        // For audio (MP3/FLAC/M4A): start with android/tv when cookies aren't present.
+        // For audio (MP3/FLAC/M4A/etc.): "android,web" and "ios,web" are ultra-reliable (zero rate-limiting / no PO token required).
+        // For video (MP4): start with default (highest 4K/1080p60 video streams), then fallback to mobile/tv clients.
         var clientStrategies = enableAnti403
-            ? (ConfigService.HasValidCookies()
-                ? new[] { "", "web,mweb", "tv_embedded,web", "web", "mweb" }
-                : (item.SelectedFormat.IsVideo()
-                    ? new[] { "", "web,mweb", "tv_embedded,web", "ios,web", "android_vr,mweb", "android,web" }
-                    : new[] { "android,web", "tv_embedded,android", "ios,web", "android_vr,mweb", "web,mweb", "" }))
+            ? (item.SelectedFormat.IsVideo()
+                ? new[] { "", "ios,web", "android_vr,web", "tv,web", "android,web", "web,mweb" }
+                : new[] { "android,web", "ios,web", "android_vr,web", "tv,web", "", "web,mweb" })
             : new[] { "" };
 
         bool success = false;
@@ -291,8 +288,17 @@ public class DownloaderEngine
             psi.ArgumentList.Add(ffmpegDir);
         }
 
-        psi.ArgumentList.Add("--js-runtimes");
-        psi.ArgumentList.Add("node");
+        var nodePath = ToolLocatorService.FindNodeJs();
+        if (!string.IsNullOrEmpty(nodePath))
+        {
+            psi.ArgumentList.Add("--js-runtimes");
+            psi.ArgumentList.Add($"node:{nodePath}");
+        }
+        else
+        {
+            psi.ArgumentList.Add("--js-runtimes");
+            psi.ArgumentList.Add("node");
+        }
 
         if (ConfigService.HasValidCookies())
         {
@@ -344,6 +350,8 @@ public class DownloaderEngine
         else
         {
             // Audio format - Extract audio and convert to requested format & bitrate
+            psi.ArgumentList.Add("-f");
+            psi.ArgumentList.Add("ba/b");
             psi.ArgumentList.Add("-x");
             psi.ArgumentList.Add("--audio-format");
             psi.ArgumentList.Add(ext);

@@ -68,7 +68,7 @@ if ($ffExe) {
     }
 }
 
-$readmeText = "===========================================================`r`n  EXPORT.X - PORTABLE MUSIC AND VIDEO DOWNLOADER v1.6`r`n===========================================================`r`n`r`nTa wersja aplikacji dziala w pelni przenosnie (PORTABLE MODE):`r`n- Wszystkie ustawienia i ciasteczka sesji sa zapisywane w podfolderze data`r`n- Pobrane utwory trafiaja domyslnie do podfolderu Downloads`r`n- Narzedzia yt-dlp i FFmpeg znajduja sie w podfolderze bin`r`n- Program nie wymaga instalacji .NET ani konfiguracji w systemie.`r`n`r`nAby uruchomic program, kliknij dwukrotnie w: ExportX.exe`r`n"
+$readmeText = "===========================================================`r`n  EXPORT.X - PORTABLE MUSIC AND VIDEO DOWNLOADER v1.6.1`r`n===========================================================`r`n`r`nTa wersja aplikacji dziala w pelni przenosnie (PORTABLE MODE):`r`n- Wszystkie ustawienia i ciasteczka sesji sa zapisywane w podfolderze data`r`n- Pobrane utwory trafiaja domyslnie do podfolderu Downloads`r`n- Narzedzia yt-dlp i FFmpeg znajduja sie w podfolderze bin`r`n- Program nie wymaga instalacji .NET ani konfiguracji w systemie.`r`n`r`nAby uruchomic program, kliknij dwukrotnie w: ExportX.exe`r`n"
 Set-Content -Path "$dist\README_PORTABLE.txt" -Value $readmeText -Encoding UTF8
 
 Write-Host "[3/4] Pakowanie do archiwum ZIP ($zip)..." -ForegroundColor Green

@@ -283,4 +283,18 @@ public static class ToolLocatorService
             return (false, $"Błąd podczas pobierania FFmpeg: {ex.Message}");
         }
     }
+
+    public static string? FindNodeJs()
+    {
+        var defaultPath = @"C:\Program Files\nodejs\node.exe";
+        if (File.Exists(defaultPath)) return defaultPath;
+
+        var localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "node", "node.exe");
+        if (File.Exists(localAppData)) return localAppData;
+
+        var fromEnv = FindInPath("node.exe");
+        if (!string.IsNullOrEmpty(fromEnv) && File.Exists(fromEnv)) return fromEnv;
+
+        return null;
+    }
 }
