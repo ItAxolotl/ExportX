@@ -141,7 +141,7 @@ public class SpotifyUserService
     {
         var playlists = new List<SpotifyPlaylistSummary>();
         
-        // 1. Return all cached playlists from active session
+        // 1. Return cached playlists
         if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
         {
             playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
@@ -312,7 +312,7 @@ public class SpotifyUserService
     {
         if (string.IsNullOrWhiteSpace(item.Id)) return;
 
-        // Check cache
+        // Check cache first
         if (_metadataCache.TryGetValue(item.Id, out var cached))
         {
             item.Title = cached.Title;
@@ -322,46 +322,7 @@ public class SpotifyUserService
             return;
         }
 
-        // 1. Fast oembed fetch (returns small JSON ~200 bytes in 50ms)
-        try
-        {
-            var oembedUrl = $"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{item.Id}";
-            using var oReq = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
-            var oResp = await _http.SendAsync(oReq, ct);
-            if (oResp.IsSuccessStatusCode)
-            {
-                var oJson = await oResp.Content.ReadAsStringAsync(ct);
-                using var oDoc = JsonDocument.Parse(oJson);
-                var oRoot = oDoc.RootElement;
-
-                var titleRaw = oRoot.TryGetProperty("title", out var titProp) ? titProp.GetString() ?? "" : "";
-                var thumb = oRoot.TryGetProperty("thumbnail_url", out var thumbProp) ? thumbProp.GetString() ?? "" : "";
-
-                string artist = "Spotify";
-                string songTitle = titleRaw;
-
-                if (titleRaw.Contains(" - "))
-                {
-                    var parts = titleRaw.Split(new[] { " - " }, 2, StringSplitOptions.TrimEntries);
-                    artist = parts[0];
-                    songTitle = parts[1];
-                }
-
-                if (!string.IsNullOrWhiteSpace(songTitle))
-                {
-                    item.Title = songTitle;
-                    item.Artist = artist;
-                    item.ImageUrl = thumb;
-                    item.DurationString = "3:30";
-
-                    _metadataCache[item.Id] = (songTitle, artist, thumb, "3:30");
-                    return;
-                }
-            }
-        }
-        catch { }
-
-        // 2. Fallback embed HTML if needed
+        // 1. Primary: Spotify Embed Track (provides exact Name, Artist list, Duration, and 300x300 Cover)
         try
         {
             var embedUrl = $"https://open.spotify.com/embed/track/{item.Id}";
@@ -419,8 +380,47 @@ public class SpotifyUserService
                             item.ImageUrl = imgUrl;
 
                             _metadataCache[item.Id] = (name, artistStr, imgUrl, item.DurationString);
+                            return;
                         }
                     }
+                }
+            }
+        }
+        catch { }
+
+        // 2. Fallback: Fast oembed fetch
+        try
+        {
+            var oembedUrl = $"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{item.Id}";
+            using var oReq = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
+            var oResp = await _http.SendAsync(oReq, ct);
+            if (oResp.IsSuccessStatusCode)
+            {
+                var oJson = await oResp.Content.ReadAsStringAsync(ct);
+                using var oDoc = JsonDocument.Parse(oJson);
+                var oRoot = oDoc.RootElement;
+
+                var titleRaw = oRoot.TryGetProperty("title", out var titProp) ? titProp.GetString() ?? "" : "";
+                var thumb = oRoot.TryGetProperty("thumbnail_url", out var thumbProp) ? thumbProp.GetString() ?? "" : "";
+
+                string artist = "Spotify";
+                string songTitle = titleRaw;
+
+                if (titleRaw.Contains(" - "))
+                {
+                    var parts = titleRaw.Split(new[] { " - " }, 2, StringSplitOptions.TrimEntries);
+                    artist = parts[0];
+                    songTitle = parts[1];
+                }
+
+                if (!string.IsNullOrWhiteSpace(songTitle))
+                {
+                    item.Title = songTitle;
+                    item.Artist = artist;
+                    item.ImageUrl = thumb;
+                    item.DurationString = "3:30";
+
+                    _metadataCache[item.Id] = (songTitle, artist, thumb, "3:30");
                 }
             }
         }
@@ -501,16 +501,14 @@ public class SpotifyUserService
 
                             progress?.Report($"Wczytano {tracks.Count} utworów.");
 
-                            // Resolve metadata in background asynchronously with high parallelism (20 concurrent)
+                            // Resolve metadata in background asynchronously with high parallelism (15 concurrent)
                             if (itemsToResolve.Count > 0)
                             {
                                 _ = Task.Run(async () =>
                                 {
-                                    int done = 0;
-                                    await Parallel.ForEachAsync(itemsToResolve, new ParallelOptions { MaxDegreeOfParallelism = 20 }, async (tr, ct) =>
+                                    await Parallel.ForEachAsync(itemsToResolve, new ParallelOptions { MaxDegreeOfParallelism = 15 }, async (tr, ct) =>
                                     {
                                         await ResolveSingleTrackMetadataAsync(tr, ct);
-                                        Interlocked.Increment(ref done);
                                     });
                                 });
                             }

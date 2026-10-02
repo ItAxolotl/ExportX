@@ -3,27 +3,120 @@ using System.Runtime.CompilerServices;
 
 namespace ExportX.Models;
 
-public class SpotifyUserProfile
+public class SpotifyUserProfile : INotifyPropertyChanged
 {
-    public string Id { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string AvatarUrl { get; set; } = string.Empty;
-    public string Product { get; set; } = "free"; // free or premium
-    public int FollowersCount { get; set; }
-    public string Country { get; set; } = string.Empty;
+    private string _id = string.Empty;
+    private string _displayName = string.Empty;
+    private string _email = string.Empty;
+    private string _avatarUrl = string.Empty;
+    private string _product = "free";
+    private int _followersCount;
+    private string _country = string.Empty;
+
+    public string Id
+    {
+        get => _id;
+        set { if (_id != value) { _id = value; OnPropertyChanged(); } }
+    }
+
+    public string DisplayName
+    {
+        get => _displayName;
+        set { if (_displayName != value) { _displayName = value; OnPropertyChanged(); } }
+    }
+
+    public string Email
+    {
+        get => _email;
+        set { if (_email != value) { _email = value; OnPropertyChanged(); } }
+    }
+
+    public string AvatarUrl
+    {
+        get => _avatarUrl;
+        set { if (_avatarUrl != value) { _avatarUrl = value; OnPropertyChanged(); } }
+    }
+
+    public string Product
+    {
+        get => _product;
+        set { if (_product != value) { _product = value; OnPropertyChanged(); } }
+    }
+
+    public int FollowersCount
+    {
+        get => _followersCount;
+        set { if (_followersCount != value) { _followersCount = value; OnPropertyChanged(); } }
+    }
+
+    public string Country
+    {
+        get => _country;
+        set { if (_country != value) { _country = value; OnPropertyChanged(); } }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public class SpotifyPlaylistSummary
+public class SpotifyPlaylistSummary : INotifyPropertyChanged
 {
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string OwnerName { get; set; } = string.Empty;
-    public string ImageUrl { get; set; } = string.Empty;
-    public int TotalTracks { get; set; }
-    public bool IsPublic { get; set; } = true;
+    private string _id = string.Empty;
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _ownerName = string.Empty;
+    private string _imageUrl = string.Empty;
+    private int _totalTracks;
+    private bool _isPublic = true;
+
+    public string Id
+    {
+        get => _id;
+        set { if (_id != value) { _id = value; OnPropertyChanged(); } }
+    }
+
+    public string Name
+    {
+        get => _name;
+        set { if (_name != value) { _name = value; OnPropertyChanged(); } }
+    }
+
+    public string Description
+    {
+        get => _description;
+        set { if (_description != value) { _description = value; OnPropertyChanged(); } }
+    }
+
+    public string OwnerName
+    {
+        get => _ownerName;
+        set { if (_ownerName != value) { _ownerName = value; OnPropertyChanged(); } }
+    }
+
+    public string ImageUrl
+    {
+        get => _imageUrl;
+        set { if (_imageUrl != value) { _imageUrl = value; OnPropertyChanged(); } }
+    }
+
+    public int TotalTracks
+    {
+        get => _totalTracks;
+        set { if (_totalTracks != value) { _totalTracks = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsPublic
+    {
+        get => _isPublic;
+        set { if (_isPublic != value) { _isPublic = value; OnPropertyChanged(); } }
+    }
+
     public string SpotifyUrl => $"https://open.spotify.com/playlist/{Id}";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 public class SpotifyTrackItem : INotifyPropertyChanged

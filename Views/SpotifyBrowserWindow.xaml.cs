@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -239,6 +239,12 @@ public partial class SpotifyBrowserWindow : Window
             foreach (var t in tracks)
             {
                 _tracks.Add(t);
+            }
+
+            if (_currentSelectedPlaylist != null)
+            {
+                _currentSelectedPlaylist.TotalTracks = tracks.Count;
+                SelectedPlaylistSubtitleText.Text = $"Autor: {_currentSelectedPlaylist.OwnerName} | Łącznie: {tracks.Count} utworów | {(_currentSelectedPlaylist.IsPublic ? "Publiczna" : "Prywatna")}";
             }
 
             UpdateSelectionSummary();
