@@ -203,12 +203,15 @@
                                         <!-- Playlist Cover Thumbnail -->
                                         <Border Grid.Column="0" 
                                                 Width="44" Height="44" 
-                                                Background="#E0E0E0" 
+                                                Background="#EEEEEE" 
                                                 BorderBrush="{StaticResource BrushBlackBorder}" 
                                                 BorderThickness="1.5" 
                                                 CornerRadius="2" 
                                                 Margin="0,0,8,0">
-                                            <Image Source="{Binding ImageUrl}" Stretch="UniformToFill" />
+                                            <Grid>
+                                                <TextBlock Text="🎵" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#AAAAAA" />
+                                                <Image Source="{Binding ImageUrl}" Stretch="UniformToFill" />
+                                            </Grid>
                                         </Border>
 
                                         <!-- Playlist Info -->
@@ -276,8 +279,11 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0" Width="60" Height="60" BorderBrush="{StaticResource BrushBlackBorder}" BorderThickness="2" Background="#DDDDDD" CornerRadius="3" Margin="0,0,10,0">
-                                <Image x:Name="SelectedCoverImage" Stretch="UniformToFill" />
+                            <Border Grid.Column="0" Width="60" Height="60" BorderBrush="{StaticResource BrushBlackBorder}" BorderThickness="2" Background="#EEEEEE" CornerRadius="3" Margin="0,0,10,0">
+                                <Grid>
+                                    <TextBlock Text="🎵" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#AAAAAA" />
+                                    <Image x:Name="SelectedCoverImage" Stretch="UniformToFill" />
+                                </Grid>
                             </Border>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">

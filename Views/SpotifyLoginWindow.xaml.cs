@@ -326,6 +326,24 @@ public partial class SpotifyLoginWindow : Window
                     return t.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
                 }
 
+                function getImgSrc(el) {
+                    if (!el) return '';
+                    const img = el.querySelector('img');
+                    if (!img) return '';
+                    let src = img.currentSrc || img.src || '';
+                    if (!src || src.startsWith('data:')) {
+                        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+                        if (srcset) {
+                            const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(Boolean);
+                            if (parts.length > 0) src = parts[parts.length - 1];
+                        }
+                    }
+                    if (!src || src.startsWith('data:')) {
+                        src = img.getAttribute('data-src') || '';
+                    }
+                    return src;
+                }
+
                 function isEditorial(title, subtitle) {
                     const t = (title + ' ' + subtitle).toLowerCase();
                     const editorialKeywords = [
@@ -380,11 +398,7 @@ public partial class SpotifyLoginWindow : Window
                             return;
                         }
 
-                        let imgUrl = '';
-                        const imgEl = a.querySelector('img') || a.closest('div')?.querySelector('img') || a.parentElement?.querySelector('img');
-                        if (imgEl && imgEl.src && !imgEl.src.startsWith('data:')) {
-                            imgUrl = imgEl.src;
-                        }
+                        let imgUrl = getImgSrc(a) || getImgSrc(a.closest('div[role=""listitem""], div[role=""row""], div[data-testid=""rootlist-item""], div[data-testid=""card-click-handler""]')) || getImgSrc(a.parentElement);
 
                         seen.add(id);
                         list.push({
@@ -444,32 +458,78 @@ public partial class SpotifyLoginWindow : Window
         const string script = @"(() => {
             try {
                 const list = [];
-                const rows = document.querySelectorAll('div[data-testid=""tracklist-row""], div[role=""row""]');
+                const seen = new Set();
+                const rows = document.querySelectorAll('div[data-testid=""tracklist-row""]');
                 let idx = 1;
+
+                function getImgSrc(el) {
+                    if (!el) return '';
+                    const img = el.querySelector('img');
+                    if (!img) return '';
+                    let src = img.currentSrc || img.src || '';
+                    if (!src || src.startsWith('data:')) {
+                        const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+                        if (srcset) {
+                            const parts = srcset.split(',').map(s => s.trim().split(' ')[0]).filter(Boolean);
+                            if (parts.length > 0) src = parts[parts.length - 1];
+                        }
+                    }
+                    return src;
+                }
+
                 rows.forEach(row => {
                     try {
-                        const titleEl = row.querySelector('div[dir=""auto""], [data-encore-id=""text""], a[data-testid=""internal-track-link""]');
-                        const artistEl = row.querySelector('span[data-encore-id=""text""] a, a[href*=""/artist/""]');
-                        if (titleEl && artistEl) {
-                            const title = titleEl.textContent.trim();
-                            const artist = artistEl.textContent.trim();
-                            if (title && artist) {
-                                let img = '';
-                                const imgEl = row.querySelector('img');
-                                if (imgEl && imgEl.src) img = imgEl.src;
+                        // Title: strictly from the track link
+                        const trackLink = row.querySelector('a[href*=""/track/""], a[data-testid=""internal-track-link""]');
+                        let title = trackLink ? trackLink.textContent.trim() : '';
 
-                                list.push({
-                                    Id: 'liked_' + idx,
-                                    TrackNumber: idx,
-                                    Title: title,
-                                    Artist: artist,
-                                    Album: '',
-                                    DurationString: '3:30',
-                                    ImageUrl: img,
-                                    IsSelected: true
-                                });
-                                idx++;
-                            }
+                        if (!title) {
+                            const titleCol = row.querySelector('div[aria-colindex=""2""] div[dir=""auto""], div[aria-colindex=""2""] span');
+                            if (titleCol) title = titleCol.textContent.trim();
+                        }
+
+                        // Artists: all links to /artist/
+                        const artistLinks = row.querySelectorAll('a[href*=""/artist/""]');
+                        let artists = [];
+                        artistLinks.forEach(a => {
+                            const t = a.textContent.trim();
+                            if (t && !artists.includes(t)) artists.push(t);
+                        });
+                        let artist = artists.join(', ');
+
+                        if (!artist) {
+                            const artSpan = row.querySelector('span[data-encore-id=""text""]');
+                            if (artSpan) artist = artSpan.textContent.trim();
+                        }
+
+                        // Album
+                        const albumLink = row.querySelector('a[href*=""/album/""]');
+                        let album = albumLink ? albumLink.textContent.trim() : '';
+
+                        // Duration
+                        const durEl = row.querySelector('div[data-encore-id=""text""]:last-child, div[aria-colindex=""5""], div[aria-colindex=""4""]');
+                        let duration = '3:30';
+                        if (durEl) {
+                            const m = durEl.textContent.match(/\d+:\d{2}/);
+                            if (m) duration = m[0];
+                        }
+
+                        let img = getImgSrc(row);
+
+                        const dedupeKey = (title + '|' + artist).toLowerCase();
+                        if (title && title !== 'Tytuł' && title !== 'Title' && !seen.has(dedupeKey)) {
+                            seen.add(dedupeKey);
+                            list.push({
+                                Id: 'liked_' + idx,
+                                TrackNumber: idx,
+                                Title: title,
+                                Artist: artist || 'Nieznany wykonawca',
+                                Album: album,
+                                DurationString: duration,
+                                ImageUrl: img,
+                                IsSelected: true
+                            });
+                            idx++;
                         }
                     } catch(e) {}
                 });
