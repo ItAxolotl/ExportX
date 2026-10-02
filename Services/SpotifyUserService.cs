@@ -135,6 +135,25 @@ public class SpotifyUserService
         };
     }
 
+    public static bool IsEditorialPlaylist(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var lower = name.ToLowerInvariant();
+        return lower.StartsWith("new music friday") ||
+               lower.StartsWith("radar premier") ||
+               lower == "up next" ||
+               lower == "hip hop alert" ||
+               lower == "alternatywna polska" ||
+               lower == "najpopularniejsze teksty piosenek" ||
+               lower.StartsWith("pop right now") ||
+               lower.StartsWith("new dance pop") ||
+               lower.StartsWith("all new dance") ||
+               lower.StartsWith("all new all now") ||
+               lower.StartsWith("singled out") ||
+               lower == "dj" ||
+               lower.StartsWith("daily mix");
+    }
+
     public async Task<List<SpotifyPlaylistSummary>> GetUserPlaylistsAsync(string accessToken, IProgress<string>? progress = null)
     {
         var playlists = new List<SpotifyPlaylistSummary>();
@@ -142,8 +161,15 @@ public class SpotifyUserService
         // 1. Check cached playlists from active user session
         if (SpotifyAuthService.CurrentSession.CachedPlaylists.Count > 0)
         {
-            playlists.AddRange(SpotifyAuthService.CurrentSession.CachedPlaylists);
-            return playlists;
+            var userPlaylists = SpotifyAuthService.CurrentSession.CachedPlaylists
+                .Where(p => !IsEditorialPlaylist(p.Name))
+                .ToList();
+
+            if (userPlaylists.Count > 0)
+            {
+                playlists.AddRange(userPlaylists);
+                return playlists;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(accessToken)) return playlists;
@@ -232,11 +258,23 @@ public class SpotifyUserService
     {
         var tracks = new List<SpotifyTrackItem>();
 
-        // 1. Check cached liked songs from active session
-        if (SpotifyAuthService.CurrentSession.CachedLikedSongs.Count > 0)
+        // 1. Check cached liked songs from active session (ignore if corrupt numeric titles)
+        var cached = SpotifyAuthService.CurrentSession.CachedLikedSongs;
+        if (cached.Count > 0 && !cached.All(t => int.TryParse(t.Title, out _)))
         {
-            tracks.AddRange(SpotifyAuthService.CurrentSession.CachedLikedSongs);
+            tracks.AddRange(cached);
             return tracks;
+        }
+
+        // 2. Fallback to 'Polubione utwory' playlist from cached playlists
+        var likedPl = SpotifyAuthService.CurrentSession.CachedPlaylists.FirstOrDefault(p => 
+            p.Name.Equals("Polubione utwory", StringComparison.OrdinalIgnoreCase) ||
+            p.Name.Equals("Liked Songs", StringComparison.OrdinalIgnoreCase));
+        
+        if (likedPl != null && !string.IsNullOrWhiteSpace(likedPl.Id))
+        {
+            var plTracks = await GetPlaylistTracksAsync(likedPl.Id, accessToken, progress);
+            if (plTracks.Count > 0) return plTracks;
         }
 
         if (string.IsNullOrWhiteSpace(accessToken)) return tracks;
