@@ -30,6 +30,15 @@ public class PlaylistParserService
 
     public static async Task<string?> GetSpotifyAccessTokenAsync(string? clientId = null, string? clientSecret = null)
     {
+        if (string.IsNullOrWhiteSpace(clientId) && string.IsNullOrWhiteSpace(clientSecret))
+        {
+            var userToken = SpotifyAuthService.CurrentSession.AccessToken;
+            if (!string.IsNullOrEmpty(userToken) && DateTime.UtcNow < SpotifyAuthService.CurrentSession.ExpirationUtc)
+            {
+                return userToken;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
         {
             var config = new ConfigService().Config;

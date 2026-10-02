@@ -148,26 +148,53 @@ public partial class MainWindow : Window
 
     private void UpdateSpotifyButtonState()
     {
-        var config = _configService.Config;
-        if (!string.IsNullOrWhiteSpace(config.SpotifyClientId) && !string.IsNullOrWhiteSpace(config.SpotifyClientSecret))
+        var session = SpotifyAuthService.CurrentSession;
+        if (SpotifyAuthService.IsLoggedIn && session.UserProfile != null)
         {
-            SpotifyApiBtn.Content = "🟢 SPOTIFY (500+ OK)";
+            SpotifyApiBtn.Content = $"🟢 SPOTIFY ({session.UserProfile.DisplayName})";
             SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-            SpotifyApiBtn.ToolTip = "Klucze Spotify API są skonfigurowane. Pobieranie nielimitowanych playlist 500+ aktywne!";
+            SpotifyApiBtn.ToolTip = $"Zalogowano jako: {session.UserProfile.DisplayName}. Kliknij, aby przeglądać swoje playlisty i polubione utwory.";
         }
         else
         {
-            SpotifyApiBtn.Content = "🟢 SPOTIFY (500+)";
-            SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonYellow");
-            SpotifyApiBtn.ToolTip = "Kliknij, aby podać darmowy klucz Spotify API i pobierać pełne playlisty (500+ utworów)";
+            var config = _configService.Config;
+            if (!string.IsNullOrWhiteSpace(config.SpotifyClientId) && !string.IsNullOrWhiteSpace(config.SpotifyClientSecret))
+            {
+                SpotifyApiBtn.Content = "🟢 SPOTIFY (KLUCZE OK)";
+                SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonLime");
+                SpotifyApiBtn.ToolTip = "Klucze Spotify API są skonfigurowane. Kliknij, aby otworzyć przeglądarkę playlist.";
+            }
+            else
+            {
+                SpotifyApiBtn.Content = "🟢 SPOTIFY (PLAYLISTY)";
+                SpotifyApiBtn.Background = (SolidColorBrush)FindResource("BrushNeonYellow");
+                SpotifyApiBtn.ToolTip = "Kliknij, aby zalogować się do Spotify, przeglądać playlisty i pobierać wybrane utwory";
+            }
         }
     }
 
     private void SpotifyApi_Click(object sender, RoutedEventArgs e)
     {
-        var win = new Views.SpotifySettingsWindow { Owner = this };
-        win.ShowDialog();
-        _configService.Load();
+        var win = new Views.SpotifyBrowserWindow { Owner = this };
+        if (win.ShowDialog() == true && win.SelectedTracksToImport.Count > 0)
+        {
+            var fmt = DefaultFormatComboBox.SelectedValue is DownloadFormat f ? f : DownloadFormat.MP3;
+            var br = DefaultBitrateComboBox.SelectedValue is AudioBitrate b ? b : AudioBitrate.B320;
+
+            foreach (var t in win.SelectedTracksToImport)
+            {
+                AddItemToCollection(t.QueryOrUrl, t.Title, t.Artist, fmt, br);
+            }
+
+            UpdateStats();
+            GlobalStatusInfo.Text = $"Dodano {win.SelectedTracksToImport.Count} utworów ze Spotify do kolejki.";
+            LogService.Success($"Dodano {win.SelectedTracksToImport.Count} utworów ze Spotify.", "SPOTIFY");
+
+            if (win.ShouldStartImmediately)
+            {
+                StartDownload_Click(sender, e);
+            }
+        }
         UpdateSpotifyButtonState();
     }
 

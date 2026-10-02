@@ -1,0 +1,120 @@
+<Window x:Class="ExportX.Views.SpotifyLoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="🟢 LOGOWANIE DO SPOTIFY"
+        Height="700" Width="880"
+        MinHeight="550" MinWidth="700"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource NotebookGridPatternBrush}"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="CanResizeWithGrip">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Header -->
+            <RowDefinition Height="*" />    <!-- WebView2 Web Browser -->
+            <RowDefinition Height="Auto" /> <!-- Bottom Action Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Red margin stripe decoration on left -->
+        <Border Grid.RowSpan="3" 
+                Width="3" 
+                HorizontalAlignment="Left" 
+                Background="{StaticResource BrushNotebookRedMargin}" 
+                Margin="-8,-16,0,-16" />
+
+        <!-- ================= HEADER CARD ================= -->
+        <Border Grid.Row="0" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Background="{StaticResource BrushNeonLime}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="🟢" FontSize="26" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="LOGOWANIE DO KONTA SPOTIFY" 
+                               FontFamily="Segoe UI" 
+                               FontWeight="Black" 
+                               FontSize="15" 
+                               Foreground="{StaticResource BrushBlackBorder}" />
+                    <TextBlock Text="Zaloguj się do swojego konta Spotify (email, Google, Facebook lub Apple), aby przeglądać i pobierać swoje prywatne i publiczne playlisty oraz polubione utwory." 
+                               FontSize="11" 
+                               FontWeight="SemiBold" 
+                               Foreground="#222222" 
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Grid.Column="2" x:Name="StatusBadge" Style="{StaticResource StickyNoteTag}" Background="{StaticResource BrushNeonYellow}" Padding="8,4" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusBadgeText" Text="OCZEKIWANIE NA LOGOWANIE" FontWeight="Black" FontSize="10" Foreground="{StaticResource BrushBlackBorder}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ================= MAIN WEBVIEW BROWSER ================= -->
+        <Border Grid.Row="1" Style="{StaticResource BrutalistCard}" Margin="0,0,0,10" Padding="2" Background="{StaticResource BrushPaperWhite}">
+            <Grid>
+                <wv2:WebView2 x:Name="LoginWebView" />
+
+                <!-- Loading / Fallback Overlay -->
+                <Border x:Name="LoadingOverlay" Background="#F6F4ED" Visibility="Visible">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                        <TextBlock x:Name="OverlayTitle" Text="⏳ Inicjalizacja logowania Spotify..." FontWeight="Black" FontSize="14" Foreground="{StaticResource BrushBlackBorder}" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="OverlaySubtitle" Text="Proszę czekać, przygotowujemy bezpieczne środowisko logowania..." FontSize="11" Foreground="#666666" Margin="0,4,0,12" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+
+                        <!-- Fallback panel if WebView2 runtime is missing -->
+                        <StackPanel x:Name="FallbackPanel" Visibility="Collapsed">
+                            <TextBlock Text="Nie udało się załadować wbudowanego okna. Możesz wpisać swój token użytkownika Spotify (Bearer Token) ręcznie:" FontSize="11" FontWeight="Bold" Margin="0,0,0,8" TextWrapping="Wrap" TextAlignment="Center" />
+                            
+                            <TextBox x:Name="ManualTokenTextBox" Style="{StaticResource BrutalistTextBox}" FontSize="11" Padding="8,6" Margin="0,0,0,8" />
+
+                            <Button Content="💾 ZAPISZ TOKEN" 
+                                    Style="{StaticResource GreenStartButton}" 
+                                    FontWeight="Black" 
+                                    FontSize="11" 
+                                    Padding="14,8" 
+                                    Click="SaveManualToken_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ================= ROW 2: BOTTOM ACTION BAR ================= -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="StatusNote" 
+                       Grid.Column="0" 
+                       Text="💡 Po zalogowaniu ExportX automatycznie wykryje Twoją sesję i zamknie to okno." 
+                       FontSize="11" 
+                       FontWeight="Bold" 
+                       Foreground="#555555" 
+                       VerticalAlignment="Center" />
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="🔄 ODŚWIEŻ STRONĘ" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="12,6" 
+                        Margin="0,0,8,0"
+                        Click="RefreshPage_Click" />
+
+                <Button Content="❌ ANULUJ" 
+                        Style="{StaticResource BrutalistButton}" 
+                        Background="{StaticResource BrushPaperWhite}" 
+                        FontWeight="Bold" 
+                        FontSize="11" 
+                        Padding="14,6" 
+                        Click="Cancel_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
