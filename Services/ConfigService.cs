@@ -88,6 +88,24 @@ public class ConfigService
         return logsDir;
     }
 
+    public static bool HasValidAuthContent(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        return text.Contains("\tLOGIN_INFO\t") || 
+               text.Contains("\t__Secure-1PSID\t") || 
+               text.Contains("\t__Secure-3PSID\t") || 
+               text.Contains("\t__Secure-1PAPISID\t") || 
+               text.Contains("\t__Secure-3PAPISID\t") || 
+               text.Contains("\tSAPISID\t") || 
+               text.Contains("\tSID\t") || 
+               text.Contains("\tSSID\t") ||
+               text.Contains("\tHSID\t") ||
+               text.Contains("\tAPISID\t") ||
+               text.Contains("LOGIN_INFO") || 
+               text.Contains("__Secure-1PSID") || 
+               text.Contains("__Secure-3PSID");
+    }
+
     public static bool HasValidCookies()
     {
         var p = GetCookiesPath();
@@ -95,12 +113,7 @@ public class ConfigService
         try
         {
             var text = File.ReadAllText(p);
-            return text.Contains("LOGIN_INFO") || 
-                   text.Contains("__Secure-1PSID") || 
-                   text.Contains("__Secure-3PSID") || 
-                   text.Contains("SAPISID") || 
-                   text.Contains("SID\t") || 
-                   text.Contains("SSID\t");
+            return HasValidAuthContent(text);
         }
         catch
         {

@@ -102,7 +102,7 @@ public static class AuthService
                         if (File.Exists(tempOutPath) && new FileInfo(tempOutPath).Length > 100)
                         {
                             var content = await File.ReadAllTextAsync(tempOutPath, token);
-                            if (content.Contains("LOGIN_INFO") || content.Contains("SID") || content.Contains("SAPISID") || content.Contains("__Secure"))
+                            if (ConfigService.HasValidAuthContent(content))
                             {
                                 if (File.Exists(targetCookiesPath)) File.Delete(targetCookiesPath);
                                 File.Move(tempOutPath, targetCookiesPath);

@@ -246,38 +246,48 @@ public partial class YouTubeLoginWindow : Window
             var dir = Path.GetDirectoryName(targetCookiesPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
-            var psi = new ProcessStartInfo
-            {
-                FileName = ytDlpPath,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
+            var defaultBrowser = AuthService.DetectDefaultBrowser();
+            var browsers = new[] { defaultBrowser, "firefox", "chrome", "edge", "brave", "opera", "vivaldi" }.Distinct().ToList();
 
-            psi.ArgumentList.Add("--cookies-from-browser");
-            psi.ArgumentList.Add("edge");
-            psi.ArgumentList.Add("--cookies");
-            psi.ArgumentList.Add(targetCookiesPath);
-            psi.ArgumentList.Add("--skip-download");
-            psi.ArgumentList.Add("https://www.youtube.com");
-
-            using var process = Process.Start(psi);
-            if (process != null)
+            foreach (var browser in browsers)
             {
-                await process.WaitForExitAsync();
-                if (ConfigService.HasValidCookies())
+                var psi = new ProcessStartInfo
                 {
-                    SessionSaved = true;
-                    LogService.Success("Pomyślnie pobrano sesję z przeglądarki.", "AUTH");
-                    MessageBox.Show("Zalogowano pomyślnie z przeglądarki!", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
-                    DialogResult = true;
-                    Close();
-                    return;
+                    FileName = ytDlpPath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                psi.ArgumentList.Add("--cookies-from-browser");
+                psi.ArgumentList.Add(browser);
+                psi.ArgumentList.Add("--cookies");
+                psi.ArgumentList.Add(targetCookiesPath);
+                psi.ArgumentList.Add("--skip-download");
+                psi.ArgumentList.Add("https://www.youtube.com");
+
+                try
+                {
+                    using var process = Process.Start(psi);
+                    if (process != null)
+                    {
+                        await process.WaitForExitAsync();
+                        if (ConfigService.HasValidCookies())
+                        {
+                            SessionSaved = true;
+                            LogService.Success($"Pomyślnie pobrano sesję z przeglądarki ({browser}).", "AUTH");
+                            MessageBox.Show($"Zalogowano pomyślnie z przeglądarki ({browser})!", "Sukces", MessageBoxButton.OK, MessageBoxImage.Information);
+                            DialogResult = true;
+                            Close();
+                            return;
+                        }
+                    }
                 }
+                catch { }
             }
 
-            MessageBox.Show("Nie udało się pobrać sesji automatycznie. Zaloguj się w oknie programu.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Nie udało się pobrać sesji z zewnętrznej przeglądarki.\n\nZaloguj się bezpośrednio w oknie powyżej (wystarczy kliknąć swoje konto), a sesja zapisze się automatycznie.", "Informacja", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
