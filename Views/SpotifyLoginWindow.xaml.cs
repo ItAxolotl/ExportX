@@ -58,6 +58,7 @@ public partial class SpotifyLoginWindow : Window
             LoginWebView.CoreWebView2.NavigationCompleted += LoginWebView_NavigationCompleted;
             LoginWebView.CoreWebView2.SourceChanged += LoginWebView_SourceChanged;
             LoginWebView.CoreWebView2.WebMessageReceived += LoginWebView_WebMessageReceived;
+            LoginWebView.CoreWebView2.WebResourceResponseReceived += CoreWebView2_WebResourceResponseReceived;
 
             LoadingOverlay.Visibility = Visibility.Collapsed;
             LoginWebView.CoreWebView2.Navigate("https://accounts.spotify.com/en/login?continue=https%3A%2F%2Fopen.spotify.com%2F");
@@ -71,6 +72,55 @@ public partial class SpotifyLoginWindow : Window
             FallbackPanel.Visibility = Visibility.Visible;
             LoadingOverlay.Visibility = Visibility.Visible;
         }
+    }
+
+    private async void CoreWebView2_WebResourceResponseReceived(object? sender, CoreWebView2WebResourceResponseReceivedEventArgs e)
+    {
+        if (_isSuccess) return;
+
+        try
+        {
+            var uri = e.Request?.Uri ?? "";
+
+            // 1. Intercept Authorization Bearer token from live browser API traffic
+            if (e.Request != null && e.Request.Headers != null)
+            {
+                string? auth = null;
+                if (e.Request.Headers.Contains("authorization")) auth = e.Request.Headers.GetHeader("authorization");
+                else if (e.Request.Headers.Contains("Authorization")) auth = e.Request.Headers.GetHeader("Authorization");
+
+                if (!string.IsNullOrEmpty(auth) && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var token = auth.Substring("Bearer ".Length).Trim();
+                    if (token.Length > 40 && (token.StartsWith("BQ") || token.Length > 100))
+                    {
+                        await ProcessTokenAsync(token, 3600);
+                        return;
+                    }
+                }
+            }
+
+            // 2. Intercept response from get_access_token endpoint
+            if (uri.Contains("get_access_token") && e.Response != null && e.Response.StatusCode == 200)
+            {
+                try
+                {
+                    var stream = await e.Response.GetContentAsync();
+                    if (stream != null)
+                    {
+                        using var reader = new StreamReader(stream);
+                        var body = await reader.ReadToEndAsync();
+                        if (!string.IsNullOrWhiteSpace(body) && body.Contains("accessToken"))
+                        {
+                            await ProcessTokenJsonAsync(body);
+                            return;
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     private async void LoginWebView_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
@@ -223,29 +273,35 @@ public partial class SpotifyLoginWindow : Window
         _isSuccess = true;
         _pollTimer.Stop();
 
-        StatusBadgeText.Text = "✅ ZALOGOWANO POMYŚLNIE!";
-        StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
-
-        string? spDc = null;
-        try
+        await Dispatcher.InvokeAsync(async () =>
         {
-            var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
-            var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
-            if (spCookie != null) spDc = spCookie.Value;
-        }
-        catch { }
+            StatusBadgeText.Text = "✅ ZALOGOWANO POMYŚLNIE!";
+            StatusBadge.Background = (SolidColorBrush)FindResource("BrushNeonLime");
 
-        var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
-        SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
+            string? spDc = null;
+            try
+            {
+                if (LoginWebView.CoreWebView2 != null)
+                {
+                    var cookies = await LoginWebView.CoreWebView2.CookieManager.GetCookiesAsync("https://open.spotify.com");
+                    var spCookie = cookies.FirstOrDefault(c => c.Name == "sp_dc");
+                    if (spCookie != null) spDc = spCookie.Value;
+                }
+            }
+            catch { }
 
-        MessageBox.Show(
-            $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nTwoje playlisty i polubione utwory są teraz dostępne.",
-            "Logowanie Spotify udane",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            var profile = await _spotifyUserService.GetUserProfileAsync(accessToken);
+            SpotifyAuthService.SaveSession(accessToken, expiresIn, profile, spDc);
 
-        DialogResult = true;
-        Close();
+            MessageBox.Show(
+                $"Zalogowano pomyślnie do Spotify jako: {profile?.DisplayName ?? "Użytkownik"}!\nTwoje playlisty i polubione utwory są teraz dostępne.",
+                "Logowanie Spotify udane",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            DialogResult = true;
+            Close();
+        });
     }
 
     private async void SaveSessionFromWebView_Click(object sender, RoutedEventArgs e)
@@ -271,6 +327,12 @@ public partial class SpotifyLoginWindow : Window
                 {
                     LoginWebView.CoreWebView2.Navigate("https://open.spotify.com/");
                     StatusNote.Text = "Przekierowywanie do odtwarzacza Spotify...";
+                    return;
+                }
+                else
+                {
+                    LoginWebView.CoreWebView2.Reload();
+                    StatusNote.Text = "Odświeżanie strony Spotify...";
                     return;
                 }
             }
