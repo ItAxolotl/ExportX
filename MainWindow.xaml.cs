@@ -144,7 +144,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void YouTubeLogin_Click(object sender, RoutedEventArgs e)
+    private async void YouTubeLogin_Click(object sender, RoutedEventArgs e)
     {
         if (ConfigService.HasValidCookies())
         {
@@ -164,13 +164,29 @@ public partial class MainWindow : Window
             return;
         }
 
-        var loginWin = new Views.YouTubeLoginWindow { Owner = this };
-        loginWin.ShowDialog();
+        YouTubeLoginBtn.Content = "⏳ WYBIERZ KONTO W PRZEGLĄDARCE...";
+        YouTubeLoginBtn.Background = (SolidColorBrush)FindResource("BrushNeonCyan");
+        GlobalStatusInfo.Text = "Otwarto stronę wyboru konta w Twojej przeglądarce. Wybierz swoje konto...";
+
+        var success = await AuthService.StartBrowserLoginFlowAsync(status =>
+        {
+            Dispatcher.InvokeAsync(() => GlobalStatusInfo.Text = status);
+        });
+
         UpdateYouTubeLoginButtonState();
 
-        if (ConfigService.HasValidCookies())
+        if (success || ConfigService.HasValidCookies())
         {
-            GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie do konta YouTube!";
+            GlobalStatusInfo.Text = "✅ Zalogowano pomyślnie z kontem Google / YouTube!";
+            MessageBox.Show(
+                "Sukces!\n\nTwoje konto Google zostało pomyślnie połączone z aplikacją ExportX.\n\nFilmy z ograniczeniem wiekowym (+18) i playlisty prywatne są teraz odblokowane.",
+                "Zalogowano pomyślnie",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        else
+        {
+            GlobalStatusInfo.Text = "Nie ukończono logowania w przeglądarce.";
         }
     }
 
