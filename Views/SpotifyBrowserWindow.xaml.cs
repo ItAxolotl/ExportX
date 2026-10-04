@@ -96,7 +96,7 @@ public partial class SpotifyBrowserWindow : Window
         return token;
     }
 
-    private async Task LoadUserPlaylistsAsync()
+    private async Task LoadUserPlaylistsAsync(bool forceRefresh = false)
     {
         _isLikedSongsMode = false;
         var token = await SpotifyAuthService.GetValidAccessTokenAsync();
@@ -119,7 +119,7 @@ public partial class SpotifyBrowserWindow : Window
 
         try
         {
-            var list = await _spotifyUserService.GetUserPlaylistsAsync(token, progress);
+            var list = await _spotifyUserService.GetUserPlaylistsAsync(token, progress, forceRefresh);
             _playlists.Clear();
             _allLoadedPlaylists.Clear();
 
@@ -226,6 +226,43 @@ public partial class SpotifyBrowserWindow : Window
         var token = await EnsureAccessTokenAsync();
         if (string.IsNullOrEmpty(token)) return;
 
+        // Immediately resolve real title, owner, and cover if placeholder
+        if (_currentSelectedPlaylist != null && (_currentSelectedPlaylist.Name.StartsWith("Playlista (") || _currentSelectedPlaylist.TotalTracks == 0))
+        {
+            _ = Task.Run(async () =>
+            {
+                var meta = await _spotifyUserService.GetPlaylistMetadataAsync(playlistId);
+                if (meta != null)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_currentSelectedPlaylist != null && _currentSelectedPlaylist.Id == playlistId)
+                        {
+                            if (!string.IsNullOrWhiteSpace(meta.Value.Name))
+                            {
+                                _currentSelectedPlaylist.Name = meta.Value.Name;
+                                SelectedPlaylistTitleText.Text = meta.Value.Name;
+                            }
+                            if (!string.IsNullOrWhiteSpace(meta.Value.Owner))
+                            {
+                                _currentSelectedPlaylist.OwnerName = meta.Value.Owner;
+                            }
+                            if (!string.IsNullOrWhiteSpace(meta.Value.Thumb))
+                            {
+                                _currentSelectedPlaylist.ImageUrl = meta.Value.Thumb;
+                                try { SelectedCoverImage.Source = new BitmapImage(new Uri(meta.Value.Thumb)); } catch { }
+                            }
+                            if (meta.Value.TotalTracks > 0 && _currentSelectedPlaylist.TotalTracks == 0)
+                            {
+                                _currentSelectedPlaylist.TotalTracks = meta.Value.TotalTracks;
+                            }
+                            SelectedPlaylistSubtitleText.Text = $"Autor: {_currentSelectedPlaylist.OwnerName} | Łącznie: {_currentSelectedPlaylist.TotalTracks} utworów | {(_currentSelectedPlaylist.IsPublic ? "Publiczna" : "Prywatna")}";
+                        }
+                    });
+                }
+            });
+        }
+
         TracksLoadingOverlay.Visibility = Visibility.Visible;
         TracksLoadingText.Text = "Wczytywanie listy utworów...";
         GlobalStatusText.Text = "Pobieranie utworów z wybranej playlisty...";
@@ -247,6 +284,17 @@ public partial class SpotifyBrowserWindow : Window
             if (_currentSelectedPlaylist != null)
             {
                 _currentSelectedPlaylist.TotalTracks = tracks.Count;
+
+                if (_currentSelectedPlaylist.Name.StartsWith("Playlista ("))
+                {
+                    var meta = await _spotifyUserService.GetPlaylistMetadataAsync(playlistId);
+                    if (meta != null && !string.IsNullOrWhiteSpace(meta.Value.Name))
+                    {
+                        _currentSelectedPlaylist.Name = meta.Value.Name;
+                        SelectedPlaylistTitleText.Text = meta.Value.Name;
+                    }
+                }
+
                 SelectedPlaylistSubtitleText.Text = $"Autor: {_currentSelectedPlaylist.OwnerName} | Łącznie: {tracks.Count} utworów | {(_currentSelectedPlaylist.IsPublic ? "Publiczna" : "Prywatna")}";
             }
 
@@ -423,15 +471,16 @@ public partial class SpotifyBrowserWindow : Window
         catch { }
     }
 
-    private void RefreshPlaylists_Click(object sender, RoutedEventArgs e)
+    private async void RefreshPlaylists_Click(object sender, RoutedEventArgs e)
     {
         if (_isLikedSongsMode)
         {
-            _ = LoadLikedSongsAsync();
+            await LoadLikedSongsAsync();
         }
         else
         {
-            _ = LoadUserPlaylistsAsync();
+            SpotifyAuthService.CurrentSession.CachedPlaylists.Clear();
+            await LoadUserPlaylistsAsync(forceRefresh: true);
         }
     }
 
